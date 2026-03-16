@@ -3,7 +3,7 @@ import { useTheme } from "./ThemeProvider";
 import { PerplexityAttribution } from "./PerplexityAttribution";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  Sun, Moon, Bot, Compass, Users, Zap, Menu, X, LogOut, User as UserIcon
+  Sun, Moon, Bot, Compass, Users, Zap, Menu, X, LogOut, User as UserIcon, Newspaper, PenSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +31,7 @@ function AgentForgeLogo() {
 
 const navItems = [
   { href: "/", label: "Explore", icon: Compass },
+  { href: "/feed", label: "Feed", icon: Newspaper },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/creators", label: "Creators", icon: Users },
 ];
@@ -117,6 +118,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <UserIcon size={14} />
                         Profile
                       </DropdownMenuItem>
+                      <Link href="/new-post" className="no-underline">
+                        <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-write">
+                          <PenSquare size={14} />
+                          Write a post
+                        </DropdownMenuItem>
+                      </Link>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="gap-2 text-xs text-destructive focus:text-destructive"

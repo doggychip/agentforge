@@ -80,6 +80,35 @@ export async function migrateIfNeeded() {
         "featured" boolean NOT NULL DEFAULT false
       );
 
+      CREATE TABLE IF NOT EXISTS "posts" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "creator_id" varchar NOT NULL,
+        "title" text NOT NULL,
+        "body" text NOT NULL,
+        "excerpt" text,
+        "visibility" text NOT NULL DEFAULT 'public',
+        "tags" text[] NOT NULL,
+        "likes" integer NOT NULL DEFAULT 0,
+        "comment_count" integer NOT NULL DEFAULT 0,
+        "created_at" timestamp NOT NULL DEFAULT now(),
+        "featured" boolean NOT NULL DEFAULT false
+      );
+
+      CREATE TABLE IF NOT EXISTS "post_likes" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "post_id" varchar NOT NULL,
+        "user_id" varchar NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS "comments" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "post_id" varchar NOT NULL,
+        "user_id" varchar NOT NULL,
+        "author_name" text NOT NULL,
+        "body" text NOT NULL,
+        "created_at" timestamp NOT NULL DEFAULT now()
+      );
+
       CREATE TABLE IF NOT EXISTS "subscriptions" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
         "subscriber_id" varchar NOT NULL,

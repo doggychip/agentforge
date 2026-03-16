@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import type { Agent, Creator } from "@shared/schema";
+import type { Agent, Creator, Post } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest } from "@/lib/queryClient";
 import {
   ArrowLeft, Shield, Bot, Wrench, FileText, Globe,
-  Star, Download, Users, ExternalLink
+  Star, Download, Users, ExternalLink, Heart, MessageCircle, Clock
 } from "lucide-react";
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -31,7 +32,7 @@ function formatNumber(n: number) {
 export default function CreatorDetail() {
   const { id } = useParams<{ id: string }>();
 
-  const { data, isLoading } = useQuery<Creator & { agents: Agent[] }>({
+  const { data, isLoading } = useQuery<Creator & { agents: Agent[]; posts: Post[] }>({
     queryKey: ["/api/creators", id],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/creators/${id}`);
@@ -67,6 +68,18 @@ export default function CreatorDetail() {
 
   const creator = data;
   const agents = data.agents || [];
+  const creatorPosts = data.posts || [];
+
+  function timeAgo(date: string | Date) {
+    const now = new Date();
+    const d = new Date(date);
+    const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
+    if (diff < 60) return "just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -121,60 +134,121 @@ export default function CreatorDetail() {
         </Button>
       </div>
 
-      {/* Agents */}
-      <div>
-        <h2 className="text-sm font-semibold text-foreground mb-4">
-          Published ({agents.length})
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {agents.map((agent) => (
-            <Link
-              key={agent.id}
-              href={`/agents/${agent.id}`}
-              className="group block no-underline"
-              data-testid={`card-agent-${agent.id}`}
-            >
-              <div className="rounded-lg border border-border bg-card p-4 h-full transition-all duration-200 hover:border-primary/30 hover:shadow-md">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0 text-primary">
-                      {categoryIcons[agent.category]}
+      {/* Tabs: Agents + Posts */}
+      <Tabs defaultValue="agents">
+        <TabsList className="mb-4">
+          <TabsTrigger value="agents" className="text-xs gap-1.5">
+            <Bot size={13} />
+            Agents ({agents.length})
+          </TabsTrigger>
+          <TabsTrigger value="posts" className="text-xs gap-1.5">
+            <FileText size={13} />
+            Posts ({creatorPosts.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="agents">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {agents.map((agent) => (
+              <Link
+                key={agent.id}
+                href={`/agents/${agent.id}`}
+                className="group block no-underline"
+                data-testid={`card-agent-${agent.id}`}
+              >
+                <div className="rounded-lg border border-border bg-card p-4 h-full transition-all duration-200 hover:border-primary/30 hover:shadow-md">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                        {categoryIcons[agent.category]}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                          {agent.name}
+                        </h3>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                        {agent.name}
-                      </h3>
-                    </div>
+                    <Badge variant="secondary" className="text-[10px] font-medium shrink-0 uppercase tracking-wider">
+                      {agent.category}
+                    </Badge>
                   </div>
-                  <Badge variant="secondary" className="text-[10px] font-medium shrink-0 uppercase tracking-wider">
-                    {agent.category}
-                  </Badge>
+
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mb-3">
+                    {agent.description}
+                  </p>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-border">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Star size={12} className="text-yellow-500" />
+                        {formatNumber(agent.stars)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Download size={12} />
+                        {formatNumber(agent.downloads)}
+                      </span>
+                    </div>
+                    <span className={`text-xs font-semibold ${agent.pricing === "free" ? "text-emerald-500" : "text-primary"}`}>
+                      {formatPrice(agent.price, agent.pricing)}
+                    </span>
+                  </div>
                 </div>
+              </Link>
+            ))}
+            {agents.length === 0 && (
+              <p className="text-sm text-muted-foreground col-span-2 text-center py-8">No agents published yet.</p>
+            )}
+          </div>
+        </TabsContent>
 
-                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mb-3">
-                  {agent.description}
-                </p>
-
-                <div className="flex items-center justify-between pt-2 border-t border-border">
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <TabsContent value="posts">
+          <div className="space-y-3">
+            {creatorPosts.map((post) => (
+              <Link
+                key={post.id}
+                href={`/posts/${post.id}`}
+                className="group block no-underline"
+                data-testid={`card-post-${post.id}`}
+              >
+                <div className="rounded-lg border border-border p-4 hover:border-primary/30 hover:bg-muted/30 transition-all">
+                  <h3 className="text-[15px] font-semibold text-foreground group-hover:text-primary transition-colors mb-1.5 line-clamp-2">
+                    {post.title}
+                  </h3>
+                  {post.excerpt && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                      {post.excerpt}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {post.tags.slice(0, 4).map((tag) => (
+                      <span key={tag} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
-                      <Star size={12} className="text-yellow-500" />
-                      {formatNumber(agent.stars)}
+                      <Heart size={12} />
+                      {post.likes}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Download size={12} />
-                      {formatNumber(agent.downloads)}
+                      <MessageCircle size={12} />
+                      {post.commentCount}
+                    </span>
+                    <span className="flex items-center gap-1 ml-auto">
+                      <Clock size={12} />
+                      {timeAgo(post.createdAt)}
                     </span>
                   </div>
-                  <span className={`text-xs font-semibold ${agent.pricing === "free" ? "text-emerald-500" : "text-primary"}`}>
-                    {formatPrice(agent.price, agent.pricing)}
-                  </span>
                 </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
+              </Link>
+            ))}
+            {creatorPosts.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-8">No posts published yet.</p>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

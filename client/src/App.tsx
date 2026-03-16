@@ -13,6 +13,10 @@ import AgentDetail from "@/pages/AgentDetail";
 import Creators from "@/pages/Creators";
 import CreatorDetail from "@/pages/CreatorDetail";
 import Auth from "@/pages/Auth";
+import Feed from "@/pages/Feed";
+import PostDetail from "@/pages/PostDetail";
+import NewPost from "@/pages/NewPost";
+import BecomeCreator from "@/pages/BecomeCreator";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -24,6 +28,10 @@ function AppRouter() {
         <Route path="/agents/:id" component={AgentDetail} />
         <Route path="/creators" component={Creators} />
         <Route path="/creators/:id" component={CreatorDetail} />
+        <Route path="/feed" component={Feed} />
+        <Route path="/posts/:id" component={PostDetail} />
+        <Route path="/new-post" component={NewPost} />
+        <Route path="/become-creator" component={BecomeCreator} />
         <Route path="/auth" component={Auth} />
         <Route component={NotFound} />
       </Switch>

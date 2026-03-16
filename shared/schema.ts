@@ -46,6 +46,38 @@ export const agents = pgTable("agents", {
   featured: boolean("featured").notNull().default(false),
 });
 
+// Creator posts / articles
+export const posts = pgTable("posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  creatorId: varchar("creator_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(), // markdown content
+  excerpt: text("excerpt"), // short preview for gated content
+  visibility: text("visibility").notNull().default("public"), // "public" | "subscribers"
+  tags: text("tags").array().notNull(),
+  likes: integer("likes").notNull().default(0),
+  commentCount: integer("comment_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  featured: boolean("featured").notNull().default(false),
+});
+
+// Post likes
+export const postLikes = pgTable("post_likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull(),
+  userId: varchar("user_id").notNull(),
+});
+
+// Post comments
+export const comments = pgTable("comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  authorName: text("author_name").notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Subscriptions
 export const subscriptions = pgTable("subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -72,6 +104,8 @@ export const loginSchema = z.object({
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, avatar: true, role: true });
 export const insertCreatorSchema = createInsertSchema(creators).omit({ id: true });
 export const insertAgentSchema = createInsertSchema(agents).omit({ id: true });
+export const insertPostSchema = createInsertSchema(posts).omit({ id: true, likes: true, commentCount: true, createdAt: true, featured: true });
+export const insertCommentSchema = createInsertSchema(comments).omit({ id: true, createdAt: true });
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -80,6 +114,10 @@ export type InsertCreator = z.infer<typeof insertCreatorSchema>;
 export type Creator = typeof creators.$inferSelect;
 export type InsertAgent = z.infer<typeof insertAgentSchema>;
 export type Agent = typeof agents.$inferSelect;
+export type InsertPost = z.infer<typeof insertPostSchema>;
+export type Post = typeof posts.$inferSelect;
+export type Comment = typeof comments.$inferSelect;
+export type InsertComment = z.infer<typeof insertCommentSchema>;
 export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
 export type Subscription = typeof subscriptions.$inferSelect;
 
