@@ -4,7 +4,6 @@ import { apiRequest } from "@/lib/queryClient";
 import type { Post, Creator } from "@shared/schema";
 import { Heart, MessageCircle, Clock, Bookmark, TrendingUp, PenSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
