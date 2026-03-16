@@ -13,6 +13,7 @@ import { eq, ilike, or, sql } from "drizzle-orm";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
 
   getCreators(): Promise<Creator[]>;
@@ -41,6 +42,10 @@ class PgStorage implements IStorage {
   }
   async getUserByUsername(username: string) {
     const [user] = await db!.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+  async getUserByEmail(email: string) {
+    const [user] = await db!.select().from(users).where(eq(users.email, email));
     return user;
   }
   async createUser(insertUser: InsertUser) {
@@ -131,9 +136,12 @@ class MemStorage implements IStorage {
   async getUserByUsername(username: string) {
     return Array.from(this.usersMap.values()).find(u => u.username === username);
   }
+  async getUserByEmail(email: string) {
+    return Array.from(this.usersMap.values()).find(u => u.email === email);
+  }
   async createUser(insertUser: InsertUser) {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
+    const user: User = { ...insertUser, id, avatar: null, role: "user" };
     this.usersMap.set(id, user);
     return user;
   }

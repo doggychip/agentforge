@@ -42,11 +42,16 @@ export async function migrateIfNeeded() {
       CREATE TABLE IF NOT EXISTS "users" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
         "username" text NOT NULL UNIQUE,
-        "password" text NOT NULL
+        "email" text NOT NULL UNIQUE,
+        "password" text NOT NULL,
+        "display_name" text NOT NULL,
+        "avatar" text,
+        "role" text NOT NULL DEFAULT 'user'
       );
 
       CREATE TABLE IF NOT EXISTS "creators" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" varchar,
         "name" text NOT NULL,
         "handle" text NOT NULL UNIQUE,
         "avatar" text NOT NULL,

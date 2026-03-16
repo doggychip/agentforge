@@ -6,12 +6,17 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
+  email: text("email").notNull().unique(),
   password: text("password").notNull(),
+  displayName: text("display_name").notNull(),
+  avatar: text("avatar"),
+  role: text("role").notNull().default("user"), // "user" | "creator" | "admin"
 });
 
 // Creators on the platform
 export const creators = pgTable("creators", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"), // null for seed data, linked for real creators
   name: text("name").notNull(),
   handle: text("handle").notNull().unique(),
   avatar: text("avatar").notNull(),
@@ -51,10 +56,20 @@ export const subscriptions = pgTable("subscriptions", {
   status: text("status").notNull().default("active"),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+// Auth schemas
+export const registerSchema = z.object({
+  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, hyphens, and underscores"),
+  email: z.string().email(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  displayName: z.string().min(1).max(100),
 });
+
+export const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, avatar: true, role: true });
 export const insertCreatorSchema = createInsertSchema(creators).omit({ id: true });
 export const insertAgentSchema = createInsertSchema(agents).omit({ id: true });
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true });
@@ -67,3 +82,6 @@ export type InsertAgent = z.infer<typeof insertAgentSchema>;
 export type Agent = typeof agents.$inferSelect;
 export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
 export type Subscription = typeof subscriptions.$inferSelect;
+
+// Safe user type (no password)
+export type SafeUser = Omit<User, "password">;

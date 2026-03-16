@@ -1,11 +1,19 @@
 import { Link, useLocation } from "wouter";
 import { useTheme } from "./ThemeProvider";
 import { PerplexityAttribution } from "./PerplexityAttribution";
+import { useAuth } from "@/hooks/use-auth";
 import {
-  Sun, Moon, Search, Bot, Compass, Users, Zap, Menu, X
+  Sun, Moon, Bot, Compass, Users, Zap, Menu, X, LogOut, User as UserIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useState } from "react";
 
 function AgentForgeLogo() {
@@ -31,6 +39,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useTheme();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, logout, isLoading } = useAuth();
+
+  function getInitials(name: string) {
+    return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -77,10 +90,55 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
             </Button>
-            <Button size="sm" className="hidden sm:flex gap-1.5 h-8 text-xs font-medium" data-testid="button-publish">
-              <Zap size={13} />
-              Publish
-            </Button>
+
+            {!isLoading && (
+              <>
+                {user ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 gap-2 px-2" data-testid="button-user-menu">
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">
+                            {getInitials(user.displayName)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="hidden sm:inline text-xs font-medium max-w-[100px] truncate">
+                          {user.displayName}
+                        </span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <div className="px-2 py-1.5">
+                        <p className="text-sm font-medium">{user.displayName}</p>
+                        <p className="text-xs text-muted-foreground">@{user.username}</p>
+                      </div>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-profile">
+                        <UserIcon size={14} />
+                        Profile
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="gap-2 text-xs text-destructive focus:text-destructive"
+                        onClick={() => logout()}
+                        data-testid="menu-item-logout"
+                      >
+                        <LogOut size={14} />
+                        Sign out
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Link href="/auth" className="no-underline">
+                    <Button size="sm" className="h-8 text-xs font-medium gap-1.5" data-testid="button-sign-in">
+                      <Zap size={13} />
+                      Sign in
+                    </Button>
+                  </Link>
+                )}
+              </>
+            )}
+
             <Button
               variant="ghost"
               size="icon"
@@ -110,6 +168,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </Link>
               );
             })}
+            {!user && (
+              <Link
+                href="/auth"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium text-primary no-underline"
+              >
+                <Zap size={16} />
+                Sign in
+              </Link>
+            )}
           </nav>
         )}
       </header>
