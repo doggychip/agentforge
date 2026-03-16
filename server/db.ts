@@ -117,6 +117,24 @@ export async function migrateIfNeeded() {
         "plan" text NOT NULL,
         "status" text NOT NULL DEFAULT 'active'
       );
+
+      CREATE TABLE IF NOT EXISTS "creator_subscriptions" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" varchar NOT NULL,
+        "creator_id" varchar NOT NULL,
+        "created_at" timestamp NOT NULL DEFAULT now(),
+        UNIQUE("user_id", "creator_id")
+      );
+
+      CREATE TABLE IF NOT EXISTS "reviews" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "agent_id" varchar NOT NULL,
+        "user_id" varchar NOT NULL,
+        "author_name" text NOT NULL,
+        "rating" integer NOT NULL,
+        "body" text NOT NULL,
+        "created_at" timestamp NOT NULL DEFAULT now()
+      );
     `);
 
     console.log("[db] Migration complete — all tables created");

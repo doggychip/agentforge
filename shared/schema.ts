@@ -78,7 +78,15 @@ export const comments = pgTable("comments", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Subscriptions
+// Creator subscriptions (follow a creator)
+export const creatorSubscriptions = pgTable("creator_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  creatorId: varchar("creator_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Agent subscriptions / installs
 export const subscriptions = pgTable("subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   subscriberId: varchar("subscriber_id").notNull(),
@@ -86,6 +94,17 @@ export const subscriptions = pgTable("subscriptions", {
   agentId: varchar("agent_id").notNull(),
   plan: text("plan").notNull(), // "free" | "pro" | "enterprise"
   status: text("status").notNull().default("active"),
+});
+
+// Agent reviews
+export const reviews = pgTable("reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  authorName: text("author_name").notNull(),
+  rating: integer("rating").notNull(), // 1-5
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Auth schemas
@@ -107,6 +126,8 @@ export const insertAgentSchema = createInsertSchema(agents).omit({ id: true });
 export const insertPostSchema = createInsertSchema(posts).omit({ id: true, likes: true, commentCount: true, createdAt: true, featured: true });
 export const insertCommentSchema = createInsertSchema(comments).omit({ id: true, createdAt: true });
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true });
+export const insertCreatorSubscriptionSchema = createInsertSchema(creatorSubscriptions).omit({ id: true, createdAt: true });
+export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -120,6 +141,10 @@ export type Comment = typeof comments.$inferSelect;
 export type InsertComment = z.infer<typeof insertCommentSchema>;
 export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
 export type Subscription = typeof subscriptions.$inferSelect;
+export type CreatorSubscription = typeof creatorSubscriptions.$inferSelect;
+export type InsertCreatorSubscription = z.infer<typeof insertCreatorSubscriptionSchema>;
+export type Review = typeof reviews.$inferSelect;
+export type InsertReview = z.infer<typeof insertReviewSchema>;
 
 // Safe user type (no password)
 export type SafeUser = Omit<User, "password">;

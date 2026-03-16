@@ -1,15 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import type { Agent, Creator } from "@shared/schema";
+import type { Agent, Creator, Post } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search, Star, Download, ArrowRight, Bot, Wrench, FileText, Globe,
-  Shield, Code, Database, Cpu, Terminal, Zap, ChevronRight
+  Shield, Code, Database, Cpu, Terminal, Zap, ChevronRight, Heart, MessageCircle, Clock
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -178,14 +178,41 @@ export default function Home() {
 
   const creatorsMap = new Map(creators?.map((c) => [c.id, c]) || []);
 
-  const filteredAgents = searchQuery
-    ? allAgents?.filter(
-        (a) =>
-          a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          a.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          a.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
-    : null;
+  // Debounced global search
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const { data: searchResults, isLoading: loadingSearch } = useQuery<{
+    agents: Agent[];
+    creators: Creator[];
+    posts: Post[];
+  }>({
+    queryKey: ["/api/search", debouncedQuery],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/search?q=${encodeURIComponent(debouncedQuery)}`);
+      return res.json();
+    },
+    enabled: debouncedQuery.length > 0,
+  });
+
+  function timeAgo(date: string | Date) {
+    const d = typeof date === "string" ? new Date(date) : date;
+    const diff = Date.now() - d.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 30) return `${days}d ago`;
+    return d.toLocaleDateString();
+  }
+
+  const totalResults = searchResults
+    ? searchResults.agents.length + searchResults.creators.length + searchResults.posts.length
+    : 0;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -221,21 +248,70 @@ export default function Home() {
       </section>
 
       {/* Search Results */}
-      {searchQuery && filteredAgents && (
+      {searchQuery && debouncedQuery && (
         <section className="mb-10">
-          <h2 className="text-sm font-semibold text-foreground mb-4">
-            {filteredAgents.length} result{filteredAgents.length !== 1 ? "s" : ""} for "{searchQuery}"
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filteredAgents.map((agent) => (
-              <AgentCard key={agent.id} agent={agent} creator={creatorsMap.get(agent.creatorId)} />
-            ))}
-          </div>
-          {filteredAgents.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              <Bot size={32} className="mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No agents found matching "{searchQuery}"</p>
+          {loadingSearch ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
             </div>
+          ) : (
+            <>
+              <h2 className="text-sm font-semibold text-foreground mb-4">
+                {totalResults} result{totalResults !== 1 ? "s" : ""} for "{debouncedQuery}"
+              </h2>
+
+              {/* Matched Agents */}
+              {searchResults && searchResults.agents.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Agents & Tools</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {searchResults.agents.map((agent) => (
+                      <AgentCard key={agent.id} agent={agent} creator={creatorsMap.get(agent.creatorId)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Matched Creators */}
+              {searchResults && searchResults.creators.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Creators</h3>
+                  <div className="rounded-lg border border-border bg-card divide-y divide-border">
+                    {searchResults.creators.map((c) => <CreatorRow key={c.id} creator={c} />)}
+                  </div>
+                </div>
+              )}
+
+              {/* Matched Posts */}
+              {searchResults && searchResults.posts.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Posts</h3>
+                  <div className="rounded-lg border border-border bg-card divide-y divide-border">
+                    {searchResults.posts.map((post) => (
+                      <Link
+                        key={post.id}
+                        href={`/posts/${post.id}`}
+                        className="block p-3.5 hover:bg-muted/50 transition-colors no-underline"
+                      >
+                        <h4 className="text-sm font-medium text-foreground mb-1 line-clamp-1">{post.title}</h4>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1"><Heart size={11} /> {post.likes}</span>
+                          <span className="flex items-center gap-1"><MessageCircle size={11} /> {post.commentCount}</span>
+                          <span className="flex items-center gap-1 ml-auto"><Clock size={11} /> {timeAgo(post.createdAt)}</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {totalResults === 0 && (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Bot size={32} className="mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">No results found for "{debouncedQuery}"</p>
+                </div>
+              )}
+            </>
           )}
         </section>
       )}

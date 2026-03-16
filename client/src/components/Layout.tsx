@@ -114,10 +114,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <p className="text-xs text-muted-foreground">@{user.username}</p>
                       </div>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-profile">
-                        <UserIcon size={14} />
-                        Profile
-                      </DropdownMenuItem>
+                      <Link href="/profile" className="no-underline">
+                        <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-profile">
+                          <UserIcon size={14} />
+                          Profile
+                        </DropdownMenuItem>
+                      </Link>
                       <Link href="/new-post" className="no-underline">
                         <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-write">
                           <PenSquare size={14} />

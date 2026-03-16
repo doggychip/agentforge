@@ -1,14 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import type { Agent, Creator, Post } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft, Shield, Bot, Wrench, FileText, Globe,
-  Star, Download, Users, ExternalLink, Heart, MessageCircle, Clock
+  Star, Download, Users, Heart, MessageCircle, Clock, Bell, BellOff, Lock,
 } from "lucide-react";
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -29,14 +31,46 @@ function formatNumber(n: number) {
   return n.toString();
 }
 
+function timeAgo(date: string | Date) {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return d.toLocaleDateString();
+}
+
 export default function CreatorDetail() {
   const { id } = useParams<{ id: string }>();
+  const { toast } = useToast();
+  const { user } = useAuth();
 
-  const { data, isLoading } = useQuery<Creator & { agents: Agent[]; posts: Post[] }>({
+  const { data, isLoading } = useQuery<Creator & { agents: Agent[]; posts: Post[]; isSubscribed: boolean }>({
     queryKey: ["/api/creators", id],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/creators/${id}`);
       return res.json();
+    },
+  });
+
+  const subscribeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/creators/${id}/subscribe`);
+      return res.json();
+    },
+    onSuccess: (result: { subscribed: boolean; subscribers: number }) => {
+      toast({
+        title: result.subscribed ? "Subscribed" : "Unsubscribed",
+        description: result.subscribed ? `You're now following ${data?.name}` : `Unfollowed ${data?.name}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/creators", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/me/subscriptions"] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Sign in to subscribe", variant: "destructive" });
     },
   });
 
@@ -69,17 +103,7 @@ export default function CreatorDetail() {
   const creator = data;
   const agents = data.agents || [];
   const creatorPosts = data.posts || [];
-
-  function timeAgo(date: string | Date) {
-    const now = new Date();
-    const d = new Date(date);
-    const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
-    if (diff < 60) return "just now";
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  }
+  const isSubscribed = data.isSubscribed;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -116,7 +140,7 @@ export default function CreatorDetail() {
             </span>
             <span className="flex items-center gap-1.5 text-muted-foreground">
               <Bot size={14} />
-              <span className="font-medium text-foreground">{creator.agentCount}</span> agents
+              <span className="font-medium text-foreground">{agents.length}</span> agents
             </span>
           </div>
 
@@ -129,8 +153,18 @@ export default function CreatorDetail() {
           </div>
         </div>
 
-        <Button className="h-9 text-sm font-medium sm:shrink-0" data-testid="button-follow">
-          Follow
+        <Button
+          className={`h-9 text-sm font-medium sm:shrink-0 gap-1.5 ${isSubscribed ? "" : ""}`}
+          variant={isSubscribed ? "outline" : "default"}
+          onClick={() => subscribeMutation.mutate()}
+          disabled={subscribeMutation.isPending}
+          data-testid="button-follow"
+        >
+          {subscribeMutation.isPending ? "..." : isSubscribed ? (
+            <><BellOff size={14} /> Unsubscribe</>
+          ) : (
+            <><Bell size={14} /> Subscribe</>
+          )}
         </Button>
       </div>
 
@@ -203,46 +237,60 @@ export default function CreatorDetail() {
 
         <TabsContent value="posts">
           <div className="space-y-3">
-            {creatorPosts.map((post) => (
-              <Link
-                key={post.id}
-                href={`/posts/${post.id}`}
-                className="group block no-underline"
-                data-testid={`card-post-${post.id}`}
-              >
-                <div className="rounded-lg border border-border p-4 hover:border-primary/30 hover:bg-muted/30 transition-all">
-                  <h3 className="text-[15px] font-semibold text-foreground group-hover:text-primary transition-colors mb-1.5 line-clamp-2">
-                    {post.title}
-                  </h3>
-                  {post.excerpt && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                      {post.excerpt}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {post.tags.slice(0, 4).map((tag) => (
-                      <span key={tag} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                        {tag}
+            {creatorPosts.map((post) => {
+              const isGated = post.visibility === "subscribers" && !isSubscribed;
+              return (
+                <Link
+                  key={post.id}
+                  href={isGated ? "#" : `/posts/${post.id}`}
+                  className="group block no-underline"
+                  data-testid={`card-post-${post.id}`}
+                  onClick={isGated ? (e: React.MouseEvent) => {
+                    e.preventDefault();
+                    toast({ title: "Subscribers only", description: "Subscribe to this creator to read this post." });
+                  } : undefined}
+                >
+                  <div className={`rounded-lg border border-border p-4 hover:border-primary/30 hover:bg-muted/30 transition-all ${isGated ? "opacity-70" : ""}`}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <h3 className="text-[15px] font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2 flex-1">
+                        {post.title}
+                      </h3>
+                      {post.visibility === "subscribers" && (
+                        <Badge variant="outline" className="text-[10px] gap-1 shrink-0">
+                          <Lock size={10} /> Subscribers
+                        </Badge>
+                      )}
+                    </div>
+                    {post.excerpt && (
+                      <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                        {isGated ? post.excerpt : post.excerpt}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {post.tags.slice(0, 4).map((tag) => (
+                        <span key={tag} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Heart size={12} />
+                        {post.likes}
                       </span>
-                    ))}
+                      <span className="flex items-center gap-1">
+                        <MessageCircle size={12} />
+                        {post.commentCount}
+                      </span>
+                      <span className="flex items-center gap-1 ml-auto">
+                        <Clock size={12} />
+                        {timeAgo(post.createdAt)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Heart size={12} />
-                      {post.likes}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MessageCircle size={12} />
-                      {post.commentCount}
-                    </span>
-                    <span className="flex items-center gap-1 ml-auto">
-                      <Clock size={12} />
-                      {timeAgo(post.createdAt)}
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
             {creatorPosts.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-8">No posts published yet.</p>
             )}

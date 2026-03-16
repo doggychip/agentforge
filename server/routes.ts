@@ -215,16 +215,86 @@ export async function registerRoutes(
   app.get("/api/creators/:id", async (req, res) => {
     const creator = await storage.getCreator(req.params.id);
     if (!creator) return res.status(404).json({ message: "Creator not found" });
-    const agents = await storage.getAgentsByCreator(creator.id);
-    const creatorPosts = await storage.getPostsByCreator(creator.id);
-    res.json({ ...creator, agents, posts: creatorPosts });
+    const [agentsList, creatorPosts] = await Promise.all([
+      storage.getAgentsByCreator(creator.id),
+      storage.getPostsByCreator(creator.id),
+    ]);
+    let isSubscribed = false;
+    if (req.session.userId) {
+      isSubscribed = await storage.isSubscribedToCreator(req.session.userId, creator.id);
+    }
+    res.json({ ...creator, agents: agentsList, posts: creatorPosts, isSubscribed });
   });
 
-  // ─── Subscriptions ──────────────────────────────────────────
+  // ─── Creator Subscriptions (follow/unfollow) ─────────────────
+
+  app.post("/api/creators/:id/subscribe", requireAuth, async (req, res) => {
+    const subscribed = await storage.subscribeToCreator(req.session.userId!, req.params.id);
+    const creator = await storage.getCreator(req.params.id);
+    res.json({ subscribed, subscribers: creator?.subscribers ?? 0 });
+  });
+
+  app.get("/api/creators/:id/is-subscribed", requireAuth, async (req, res) => {
+    const subscribed = await storage.isSubscribedToCreator(req.session.userId!, req.params.id);
+    res.json({ subscribed });
+  });
+
+  // ─── Agent Subscriptions ─────────────────────────────────────
 
   app.post("/api/subscriptions", requireAuth, async (req, res) => {
     const sub = await storage.createSubscription(req.body);
     res.status(201).json(sub);
+  });
+
+  // ─── Reviews ─────────────────────────────────────────────────
+
+  app.get("/api/agents/:id/reviews", async (req, res) => {
+    const [reviews, rating] = await Promise.all([
+      storage.getReviewsByAgent(req.params.id),
+      storage.getAgentAverageRating(req.params.id),
+    ]);
+    res.json({ reviews, ...rating });
+  });
+
+  app.post("/api/agents/:id/reviews", requireAuth, async (req, res) => {
+    const user = await storage.getUser(req.session.userId!);
+    if (!user) return res.status(401).json({ message: "Not authenticated" });
+    const review = await storage.createReview({
+      agentId: req.params.id,
+      userId: req.session.userId!,
+      authorName: user.displayName,
+      rating: req.body.rating,
+      body: req.body.body,
+    });
+    res.status(201).json(review);
+  });
+
+  // ─── Global Search ──────────────────────────────────────────
+
+  app.get("/api/search", async (req, res) => {
+    const { q } = req.query;
+    if (!q || typeof q !== "string") return res.json({ agents: [], creators: [], posts: [] });
+    const results = await storage.searchAll(q);
+    res.json(results);
+  });
+
+  // ─── User Profile / Activity ─────────────────────────────────
+
+  app.get("/api/me/subscriptions", requireAuth, async (req, res) => {
+    const creatorIds = await storage.getUserSubscribedCreatorIds(req.session.userId!);
+    const allCreators = await storage.getCreators();
+    const subscribed = allCreators.filter(c => creatorIds.includes(c.id));
+    res.json(subscribed);
+  });
+
+  app.get("/api/me/liked-posts", requireAuth, async (req, res) => {
+    const posts = await storage.getUserLikedPosts(req.session.userId!);
+    res.json(posts);
+  });
+
+  app.get("/api/me/comments", requireAuth, async (req, res) => {
+    const comments = await storage.getUserComments(req.session.userId!);
+    res.json(comments);
   });
 
   // ─── Posts / Feed ────────────────────────────────────────────

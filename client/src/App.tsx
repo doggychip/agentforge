@@ -17,6 +17,7 @@ import Feed from "@/pages/Feed";
 import PostDetail from "@/pages/PostDetail";
 import NewPost from "@/pages/NewPost";
 import BecomeCreator from "@/pages/BecomeCreator";
+import Profile from "@/pages/Profile";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -32,6 +33,7 @@ function AppRouter() {
         <Route path="/posts/:id" component={PostDetail} />
         <Route path="/new-post" component={NewPost} />
         <Route path="/become-creator" component={BecomeCreator} />
+        <Route path="/profile" component={Profile} />
         <Route path="/auth" component={Auth} />
         <Route component={NotFound} />
       </Switch>

@@ -1,15 +1,18 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import type { Agent, Creator } from "@shared/schema";
+import { useState } from "react";
+import type { Agent, Creator, Review } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Star, Download, Bot, Wrench, FileText, Globe, ArrowLeft,
-  Shield, Copy, ExternalLink, CheckCircle, Code, Cpu
+  Shield, Copy, Code, Cpu, MessageSquare, CheckCircle, Terminal,
 } from "lucide-react";
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -30,16 +33,47 @@ function formatNumber(n: number) {
   return n.toString();
 }
 
+function timeAgo(date: string | Date) {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return d.toLocaleDateString();
+}
+
+function StarRating({ rating, size = 14, interactive = false, onRate }: {
+  rating: number; size?: number; interactive?: boolean; onRate?: (r: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star
+          key={i}
+          size={size}
+          className={`${i <= rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground/30"} ${interactive ? "cursor-pointer hover:text-yellow-400" : ""}`}
+          onClick={() => interactive && onRate?.(i)}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function AgentDetail() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewBody, setReviewBody] = useState("");
 
   const { data: agentData, isLoading } = useQuery<Agent & { creator?: Creator }>({
     queryKey: ["/api/agents", id],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/agents/${id}`);
       const agent = await res.json();
-      // Fetch creator info
       try {
         const cRes = await apiRequest("GET", `/api/creators/${agent.creatorId}`);
         const creator = await cRes.json();
@@ -50,10 +84,18 @@ export default function AgentDetail() {
     },
   });
 
+  const { data: reviewData } = useQuery<{ reviews: Review[]; avg: number; count: number }>({
+    queryKey: ["/api/agents", id, "reviews"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/agents/${id}/reviews`);
+      return res.json();
+    },
+  });
+
   const subscribeMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/subscriptions", {
-        subscriberId: "demo-user",
+        subscriberId: user?.id || "anonymous",
         subscriberType: "human",
         agentId: id,
         plan: agentData?.pricing === "free" ? "free" : "pro",
@@ -62,7 +104,27 @@ export default function AgentDetail() {
     },
     onSuccess: () => {
       toast({ title: "Subscribed", description: `You're now subscribed to ${agentData?.name}` });
-      queryClient.invalidateQueries({ queryKey: ["/api/agents", id] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Sign in to subscribe", variant: "destructive" });
+    },
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/agents/${id}/reviews`, {
+        rating: reviewRating,
+        body: reviewBody,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Review posted" });
+      setReviewBody("");
+      setReviewRating(5);
+      queryClient.invalidateQueries({ queryKey: ["/api/agents", id, "reviews"] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Sign in to leave a review", variant: "destructive" });
     },
   });
 
@@ -90,6 +152,9 @@ export default function AgentDetail() {
 
   const agent = agentData;
   const creator = (agent as any).creator as Creator | undefined;
+  const reviews = reviewData?.reviews || [];
+  const avgRating = reviewData?.avg || 0;
+  const reviewCount = reviewData?.count || 0;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -104,7 +169,7 @@ export default function AgentDetail() {
           {categoryIcons[agent.category]}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2.5 mb-1">
+          <div className="flex items-center gap-2.5 mb-1 flex-wrap">
             <h1 className="text-xl font-bold text-foreground">{agent.name}</h1>
             <Badge variant="secondary" className="text-[10px] uppercase tracking-wider font-medium">
               {agent.category}
@@ -131,7 +196,7 @@ export default function AgentDetail() {
             {agent.description}
           </p>
 
-          <div className="flex items-center gap-4 mt-4">
+          <div className="flex items-center gap-4 mt-4 flex-wrap">
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <Star size={14} className="text-yellow-500" />
               <span className="font-medium text-foreground">{formatNumber(agent.stars)}</span> stars
@@ -140,6 +205,13 @@ export default function AgentDetail() {
               <Download size={14} />
               <span className="font-medium text-foreground">{formatNumber(agent.downloads)}</span> downloads
             </div>
+            {reviewCount > 0 && (
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <StarRating rating={Math.round(avgRating)} size={12} />
+                <span className="font-medium text-foreground">{avgRating.toFixed(1)}</span>
+                <span>({reviewCount})</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -160,7 +232,9 @@ export default function AgentDetail() {
               disabled={subscribeMutation.isPending}
               data-testid="button-subscribe"
             >
-              {subscribeMutation.isPending ? "Subscribing..." : agent.pricing === "free" ? "Install" : "Subscribe"}
+              {subscribeMutation.isPending ? "..." : subscribeMutation.isSuccess ? (
+                <span className="flex items-center gap-1.5"><CheckCircle size={14} /> Subscribed</span>
+              ) : agent.pricing === "free" ? "Install" : "Subscribe"}
             </Button>
             {agent.apiEndpoint && (
               <Button variant="outline" className="w-full h-8 text-xs gap-1.5" data-testid="button-api-docs">
@@ -175,8 +249,10 @@ export default function AgentDetail() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="bg-muted/50" data-testid="tabs-agent">
           <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
-          <TabsTrigger value="api" className="text-xs">API</TabsTrigger>
-          <TabsTrigger value="changelog" className="text-xs">Changelog</TabsTrigger>
+          <TabsTrigger value="api" className="text-xs">Quick Start</TabsTrigger>
+          <TabsTrigger value="reviews" className="text-xs">
+            Reviews {reviewCount > 0 && `(${reviewCount})`}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -220,30 +296,107 @@ export default function AgentDetail() {
         </TabsContent>
 
         <TabsContent value="api">
-          <div className="rounded-lg border border-border bg-card p-6">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Quick Start</h3>
-            <div className="rounded-md bg-muted p-4 font-mono text-xs leading-relaxed text-muted-foreground overflow-x-auto">
-              <pre>{`# Install the AgentForge CLI
-npm install -g @agentforge/cli
+          <div className="space-y-4">
+            {/* Install */}
+            <div className="rounded-lg border border-border bg-card p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Terminal size={15} className="text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Installation</h3>
+              </div>
+              <div className="rounded-md bg-muted p-3 font-mono text-xs leading-relaxed text-muted-foreground overflow-x-auto">
+                <pre>{`npm install @agentforge/${agent.id}`}</pre>
+              </div>
+            </div>
 
-# Subscribe to this agent
-agentforge subscribe ${agent.id}
+            {/* Usage */}
+            <div className="rounded-lg border border-border bg-card p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Code size={15} className="text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Usage</h3>
+              </div>
+              <div className="rounded-md bg-muted p-3 font-mono text-xs leading-relaxed text-muted-foreground overflow-x-auto">
+                <pre>{`import { ${agent.name.replace(/[^a-zA-Z0-9]/g, "")} } from "@agentforge/${agent.id}";
 
-# Use in your code
-import { ${agent.name.replace(/\s+/g, "")} } from "@agentforge/${agent.id}";
+const agent = new ${agent.name.replace(/[^a-zA-Z0-9]/g, "")}({
+  apiKey: process.env.AGENTFORGE_KEY,
+});
 
-const result = await ${agent.name.replace(/\s+/g, "")}.run({
-  input: "your data here"
-});`}</pre>
+// Run the agent
+const result = await agent.run({
+  input: "your data here",
+});
+
+console.log(result);`}</pre>
+              </div>
+            </div>
+
+            {/* API for Agents */}
+            <div className="rounded-lg border border-border bg-card p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Bot size={15} className="text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">For AI Agent Consumers</h3>
+              </div>
+              <div className="rounded-md bg-muted p-3 font-mono text-xs leading-relaxed text-muted-foreground overflow-x-auto">
+                <pre>{`# REST API endpoint
+curl -X POST ${agent.apiEndpoint || `https://api.agentforge.dev/v1/agents/${agent.id}/run`} \\
+  -H "Authorization: Bearer $AGENTFORGE_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"input": "your data here"}'`}</pre>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                AI agents can subscribe and consume this agent via REST API with their own API key.
+              </p>
             </div>
           </div>
         </TabsContent>
 
-        <TabsContent value="changelog">
-          <div className="rounded-lg border border-border bg-card p-6 text-center">
-            <Cpu size={24} className="mx-auto mb-3 text-muted-foreground opacity-40" />
-            <p className="text-sm text-muted-foreground">Changelog coming soon</p>
-          </div>
+        <TabsContent value="reviews" className="space-y-4">
+          {/* Write Review */}
+          {user && (
+            <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Write a review</h3>
+              <StarRating rating={reviewRating} interactive onRate={setReviewRating} />
+              <Textarea
+                placeholder="Share your experience with this agent..."
+                value={reviewBody}
+                onChange={(e) => setReviewBody(e.target.value)}
+                className="text-sm min-h-[80px]"
+                data-testid="textarea-review"
+              />
+              <Button
+                size="sm"
+                className="text-xs"
+                onClick={() => reviewMutation.mutate()}
+                disabled={reviewMutation.isPending || !reviewBody.trim()}
+                data-testid="button-submit-review"
+              >
+                {reviewMutation.isPending ? "Posting..." : "Post Review"}
+              </Button>
+            </div>
+          )}
+
+          {/* Review List */}
+          {reviews.length > 0 ? (
+            <div className="space-y-3">
+              {reviews.map((review) => (
+                <div key={review.id} className="rounded-lg border border-border bg-card p-4" data-testid={`review-${review.id}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">{review.authorName}</span>
+                      <StarRating rating={review.rating} size={11} />
+                    </div>
+                    <span className="text-xs text-muted-foreground">{timeAgo(review.createdAt)}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{review.body}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 rounded-lg border border-dashed border-border">
+              <MessageSquare size={28} className="mx-auto mb-3 text-muted-foreground opacity-40" />
+              <p className="text-sm text-muted-foreground">No reviews yet. Be the first to review.</p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

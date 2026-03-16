@@ -5,7 +5,10 @@ import {
   type Post, type InsertPost,
   type Comment, type InsertComment,
   type Subscription, type InsertSubscription,
+  type CreatorSubscription, type InsertCreatorSubscription,
+  type Review, type InsertReview,
   users, creators, agents, posts, postLikes, comments, subscriptions,
+  creatorSubscriptions, reviews,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -43,6 +46,24 @@ export interface IStorage {
 
   getSubscriptions(subscriberId: string): Promise<Subscription[]>;
   createSubscription(sub: InsertSubscription): Promise<Subscription>;
+
+  // Creator subscriptions (follow/unfollow)
+  subscribeToCreator(userId: string, creatorId: string): Promise<boolean>; // true=subscribed, false=unsubscribed
+  isSubscribedToCreator(userId: string, creatorId: string): Promise<boolean>;
+  getCreatorSubscriptions(userId: string): Promise<CreatorSubscription[]>;
+  getUserSubscribedCreatorIds(userId: string): Promise<string[]>;
+
+  // Reviews
+  getReviewsByAgent(agentId: string): Promise<Review[]>;
+  createReview(review: InsertReview): Promise<Review>;
+  getAgentAverageRating(agentId: string): Promise<{ avg: number; count: number }>;
+
+  // Search across all entities
+  searchAll(query: string): Promise<{ agents: Agent[]; creators: Creator[]; posts: Post[] }>;
+
+  // User activity
+  getUserLikedPosts(userId: string): Promise<Post[]>;
+  getUserComments(userId: string): Promise<Comment[]>;
 
   seed(): Promise<void>;
 }
@@ -158,6 +179,75 @@ class PgStorage implements IStorage {
     return subscription;
   }
 
+  async subscribeToCreator(userId: string, creatorId: string) {
+    const [existing] = await db!.select().from(creatorSubscriptions).where(
+      and(eq(creatorSubscriptions.userId, userId), eq(creatorSubscriptions.creatorId, creatorId))
+    );
+    if (existing) {
+      await db!.delete(creatorSubscriptions).where(eq(creatorSubscriptions.id, existing.id));
+      await db!.update(creators).set({ subscribers: sql`GREATEST(${creators.subscribers} - 1, 0)` }).where(eq(creators.id, creatorId));
+      return false;
+    }
+    await db!.insert(creatorSubscriptions).values({ userId, creatorId });
+    await db!.update(creators).set({ subscribers: sql`${creators.subscribers} + 1` }).where(eq(creators.id, creatorId));
+    return true;
+  }
+  async isSubscribedToCreator(userId: string, creatorId: string) {
+    const [existing] = await db!.select().from(creatorSubscriptions).where(
+      and(eq(creatorSubscriptions.userId, userId), eq(creatorSubscriptions.creatorId, creatorId))
+    );
+    return !!existing;
+  }
+  async getCreatorSubscriptions(userId: string) {
+    return db!.select().from(creatorSubscriptions).where(eq(creatorSubscriptions.userId, userId));
+  }
+  async getUserSubscribedCreatorIds(userId: string) {
+    const subs = await db!.select({ creatorId: creatorSubscriptions.creatorId }).from(creatorSubscriptions).where(eq(creatorSubscriptions.userId, userId));
+    return subs.map(s => s.creatorId);
+  }
+
+  async getReviewsByAgent(agentId: string) {
+    return db!.select().from(reviews).where(eq(reviews.agentId, agentId)).orderBy(desc(reviews.createdAt));
+  }
+  async createReview(review: InsertReview) {
+    const [r] = await db!.insert(reviews).values(review).returning();
+    return r;
+  }
+  async getAgentAverageRating(agentId: string) {
+    const result = await db!.select({
+      avg: sql<number>`COALESCE(AVG(${reviews.rating}), 0)`,
+      count: sql<number>`COUNT(*)`,
+    }).from(reviews).where(eq(reviews.agentId, agentId));
+    return { avg: Number(result[0]?.avg || 0), count: Number(result[0]?.count || 0) };
+  }
+
+  async searchAll(query: string) {
+    const pattern = `%${query}%`;
+    const [matchedAgents, matchedCreators, matchedPosts] = await Promise.all([
+      db!.select().from(agents).where(
+        or(ilike(agents.name, pattern), ilike(agents.description, pattern))
+      ),
+      db!.select().from(creators).where(
+        or(ilike(creators.name, pattern), ilike(creators.bio, pattern), ilike(creators.handle, pattern))
+      ),
+      db!.select().from(posts).where(
+        or(ilike(posts.title, pattern), ilike(posts.body, pattern))
+      ).orderBy(desc(posts.createdAt)),
+    ]);
+    return { agents: matchedAgents, creators: matchedCreators, posts: matchedPosts };
+  }
+
+  async getUserLikedPosts(userId: string) {
+    const likes = await db!.select({ postId: postLikes.postId }).from(postLikes).where(eq(postLikes.userId, userId));
+    if (likes.length === 0) return [];
+    const postIds = likes.map(l => l.postId);
+    const allPosts = await db!.select().from(posts);
+    return allPosts.filter(p => postIds.includes(p.id)).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  async getUserComments(userId: string) {
+    return db!.select().from(comments).where(eq(comments.userId, userId)).orderBy(desc(comments.createdAt));
+  }
+
   async seed() {
     const existing = await db!.select().from(creators).limit(1);
     if (existing.length > 0) return;
@@ -177,6 +267,8 @@ class MemStorage implements IStorage {
   private postLikesMap: Map<string, { postId: string; userId: string }>;
   private commentsMap: Map<string, Comment>;
   private subscriptionsMap: Map<string, Subscription>;
+  private creatorSubsMap: Map<string, CreatorSubscription>;
+  private reviewsMap: Map<string, Review>;
 
   constructor() {
     this.usersMap = new Map();
@@ -186,6 +278,8 @@ class MemStorage implements IStorage {
     this.postLikesMap = new Map();
     this.commentsMap = new Map();
     this.subscriptionsMap = new Map();
+    this.creatorSubsMap = new Map();
+    this.reviewsMap = new Map();
   }
 
   async seed() {
@@ -293,6 +387,67 @@ class MemStorage implements IStorage {
     const subscription: Subscription = { ...sub, id };
     this.subscriptionsMap.set(id, subscription);
     return subscription;
+  }
+
+  async subscribeToCreator(userId: string, creatorId: string) {
+    const key = `${userId}-${creatorId}`;
+    if (this.creatorSubsMap.has(key)) {
+      this.creatorSubsMap.delete(key);
+      const creator = this.creatorsMap.get(creatorId);
+      if (creator) creator.subscribers = Math.max(0, creator.subscribers - 1);
+      return false;
+    }
+    this.creatorSubsMap.set(key, { id: randomUUID(), userId, creatorId, createdAt: new Date() });
+    const creator = this.creatorsMap.get(creatorId);
+    if (creator) creator.subscribers += 1;
+    return true;
+  }
+  async isSubscribedToCreator(userId: string, creatorId: string) {
+    return this.creatorSubsMap.has(`${userId}-${creatorId}`);
+  }
+  async getCreatorSubscriptions(userId: string) {
+    return Array.from(this.creatorSubsMap.values()).filter(s => s.userId === userId);
+  }
+  async getUserSubscribedCreatorIds(userId: string) {
+    return Array.from(this.creatorSubsMap.values()).filter(s => s.userId === userId).map(s => s.creatorId);
+  }
+
+  async getReviewsByAgent(agentId: string) {
+    return Array.from(this.reviewsMap.values()).filter(r => r.agentId === agentId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  async createReview(review: InsertReview) {
+    const id = randomUUID();
+    const r: Review = { ...review, id, createdAt: new Date() };
+    this.reviewsMap.set(id, r);
+    return r;
+  }
+  async getAgentAverageRating(agentId: string) {
+    const agentReviews = Array.from(this.reviewsMap.values()).filter(r => r.agentId === agentId);
+    if (agentReviews.length === 0) return { avg: 0, count: 0 };
+    const avg = agentReviews.reduce((sum, r) => sum + r.rating, 0) / agentReviews.length;
+    return { avg, count: agentReviews.length };
+  }
+
+  async searchAll(query: string) {
+    const q = query.toLowerCase();
+    const matchedAgents = Array.from(this.agentsMap.values()).filter(a =>
+      a.name.toLowerCase().includes(q) || a.description.toLowerCase().includes(q) || a.tags.some(t => t.toLowerCase().includes(q))
+    );
+    const matchedCreators = Array.from(this.creatorsMap.values()).filter(c =>
+      c.name.toLowerCase().includes(q) || c.bio.toLowerCase().includes(q) || c.handle.toLowerCase().includes(q)
+    );
+    const matchedPosts = Array.from(this.postsMap.values()).filter(p =>
+      p.title.toLowerCase().includes(q) || p.body.toLowerCase().includes(q)
+    ).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return { agents: matchedAgents, creators: matchedCreators, posts: matchedPosts };
+  }
+
+  async getUserLikedPosts(userId: string) {
+    const likedPostIds = Array.from(this.postLikesMap.entries()).filter(([_, v]) => v.userId === userId).map(([_, v]) => v.postId);
+    return Array.from(this.postsMap.values()).filter(p => likedPostIds.includes(p.id)).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  async getUserComments(userId: string) {
+    return Array.from(this.commentsMap.values()).filter(c => c.userId === userId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 }
 
