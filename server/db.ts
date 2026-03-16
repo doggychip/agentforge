@@ -1,4 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
+import { sql } from "drizzle-orm";
 import pg from "pg";
 import * as schema from "@shared/schema";
 
@@ -7,13 +8,87 @@ const { Pool } = pg;
 // Only create a real pool if DATABASE_URL is set.
 // Otherwise fall back to in-memory storage (see storage.ts).
 let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+let pool: InstanceType<typeof Pool> | null = null;
 
 if (process.env.DATABASE_URL) {
-  const pool = new Pool({
+  pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     max: 10,
   });
   db = drizzle(pool, { schema });
+}
+
+/**
+ * Auto-create tables if they don't exist.
+ * Uses raw SQL so we don't need drizzle-kit at runtime.
+ */
+export async function migrateIfNeeded() {
+  if (!pool) return;
+
+  const client = await pool.connect();
+  try {
+    // Check if tables already exist
+    const result = await client.query(
+      `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'creators'`
+    );
+    if (parseInt(result.rows[0].count, 10) > 0) {
+      console.log("[db] Tables already exist, skipping migration");
+      return;
+    }
+
+    console.log("[db] Running auto-migration — creating tables...");
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "users" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "username" text NOT NULL UNIQUE,
+        "password" text NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS "creators" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "name" text NOT NULL,
+        "handle" text NOT NULL UNIQUE,
+        "avatar" text NOT NULL,
+        "bio" text NOT NULL,
+        "subscribers" integer NOT NULL DEFAULT 0,
+        "agent_count" integer NOT NULL DEFAULT 0,
+        "tags" text[] NOT NULL,
+        "verified" boolean NOT NULL DEFAULT false
+      );
+
+      CREATE TABLE IF NOT EXISTS "agents" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "creator_id" varchar NOT NULL,
+        "name" text NOT NULL,
+        "description" text NOT NULL,
+        "long_description" text,
+        "category" text NOT NULL,
+        "pricing" text NOT NULL,
+        "price" integer,
+        "currency" text DEFAULT 'USD',
+        "tags" text[] NOT NULL,
+        "stars" integer NOT NULL DEFAULT 0,
+        "downloads" integer NOT NULL DEFAULT 0,
+        "api_endpoint" text,
+        "status" text NOT NULL DEFAULT 'active',
+        "featured" boolean NOT NULL DEFAULT false
+      );
+
+      CREATE TABLE IF NOT EXISTS "subscriptions" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "subscriber_id" varchar NOT NULL,
+        "subscriber_type" text NOT NULL,
+        "agent_id" varchar NOT NULL,
+        "plan" text NOT NULL,
+        "status" text NOT NULL DEFAULT 'active'
+      );
+    `);
+
+    console.log("[db] Migration complete — all tables created");
+  } finally {
+    client.release();
+  }
 }
 
 export { db };

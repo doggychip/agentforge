@@ -60,6 +60,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Auto-create tables if Postgres is connected (no manual drizzle-kit push needed)
+  const { migrateIfNeeded } = await import("./db");
+  await migrateIfNeeded();
+
   // Seed database with sample data on first run
   const { storage } = await import("./storage");
   await storage.seed();

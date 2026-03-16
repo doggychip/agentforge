@@ -1,4 +1,5 @@
 {
   "build_command": "npm run build",
-  "start_command": "npm run start"
+  "start_command": "npm run start",
+  "serverless": false
 }
