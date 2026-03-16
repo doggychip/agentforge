@@ -30,6 +30,9 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  // Trust proxy (behind Zeabur / Perplexity reverse proxy)
+  app.set("trust proxy", 1);
+
   // Session middleware
   app.use(
     session({
@@ -37,10 +40,10 @@ export async function registerRoutes(
       resave: false,
       saveUninitialized: false,
       cookie: {
-        secure: false, // set true behind HTTPS proxy
+        secure: true,
         httpOnly: true,
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        sameSite: "lax",
+        sameSite: "none", // Required for cross-site iframe contexts
       },
     })
   );
