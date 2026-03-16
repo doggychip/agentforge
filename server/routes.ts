@@ -40,10 +40,10 @@ export async function registerRoutes(
       resave: false,
       saveUninitialized: false,
       cookie: {
-        secure: true,
+        secure: false,
         httpOnly: true,
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        sameSite: "none", // Required for cross-site iframe contexts
+        sameSite: "lax",
       },
     })
   );
