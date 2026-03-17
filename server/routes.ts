@@ -1,6 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import pg from "pg";
 import Stripe from "stripe";
 import { storage } from "./storage";
 import { registerSchema, loginSchema, type SafeUser } from "@shared/schema";
@@ -44,20 +46,31 @@ export async function registerRoutes(
   // Trust proxy (behind Zeabur / Perplexity reverse proxy)
   app.set("trust proxy", 1);
 
-  // Session middleware
-  app.use(
-    session({
-      secret: process.env.SESSION_SECRET || "agentforge-dev-secret-change-in-prod",
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        secure: false,
-        httpOnly: true,
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        sameSite: "lax",
-      },
-    })
-  );
+  // Session middleware — use Postgres session store if DATABASE_URL is set, otherwise MemoryStore
+  const sessionConfig: session.SessionOptions = {
+    secret: process.env.SESSION_SECRET || "agentforge-dev-secret-change-in-prod",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: false,
+      httpOnly: true,
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      sameSite: "lax",
+    },
+  };
+
+  if (process.env.DATABASE_URL) {
+    const PgSession = connectPgSimple(session);
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    sessionConfig.store = new PgSession({
+      pool,
+      tableName: "user_sessions",
+      createTableIfMissing: true,
+    });
+    console.log("[session] Using Postgres-backed session store");
+  }
+
+  app.use(session(sessionConfig));
 
   // ─── Auth Routes ─────────────────────────────────────────────
 
