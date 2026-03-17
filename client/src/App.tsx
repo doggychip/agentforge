@@ -21,6 +21,7 @@ import Profile from "@/pages/Profile";
 import Dashboard from "@/pages/Dashboard";
 import ApiKeys from "@/pages/ApiKeys";
 import ApiDocs from "@/pages/ApiDocs";
+import ForCreators from "@/pages/ForCreators";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -40,6 +41,7 @@ function AppRouter() {
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/settings/api-keys" component={ApiKeys} />
         <Route path="/docs" component={ApiDocs} />
+        <Route path="/for-creators" component={ForCreators} />
         <Route path="/auth" component={Auth} />
         <Route component={NotFound} />
       </Switch>
