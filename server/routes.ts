@@ -83,12 +83,30 @@ export async function registerRoutes(
   app.use(session(sessionConfig));
 
   // ─── Diagnostics ────────────────────────────────────────────
-  app.get("/api/debug/status", (_req, res) => {
+  app.get("/api/debug/status", async (_req, res) => {
+    let sessionCount = "unknown";
+    let sessionTableExists = false;
+    try {
+      const pool2 = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+      const tableCheck = await pool2.query(
+        `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'user_sessions'`
+      );
+      sessionTableExists = parseInt(tableCheck.rows[0].count, 10) > 0;
+      if (sessionTableExists) {
+        const countResult = await pool2.query('SELECT COUNT(*) FROM user_sessions');
+        sessionCount = countResult.rows[0].count;
+      }
+      await pool2.end();
+    } catch (e: any) {
+      sessionCount = "error: " + e.message;
+    }
     res.json({
       databaseUrl: process.env.DATABASE_URL ? "SET (" + process.env.DATABASE_URL.substring(0, 30) + "...)" : "NOT SET",
       stripeKey: process.env.STRIPE_SECRET_KEY ? "SET" : "NOT SET",
       sessionStore: sessionConfig.store ? "Postgres" : "MemoryStore",
       nodeEnv: process.env.NODE_ENV || "not set",
+      sessionTableExists,
+      sessionCount,
     });
   });
 
@@ -118,9 +136,15 @@ export async function registerRoutes(
         displayName: data.displayName,
       });
 
-      // Set session
+      // Set session — explicit save for Postgres-backed store
       req.session.userId = user.id;
-      res.status(201).json(toSafeUser(user));
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error (register):", err);
+          return res.status(500).json({ message: "Session error" });
+        }
+        res.status(201).json(toSafeUser(user));
+      });
     } catch (error: any) {
       if (error.name === "ZodError") {
         return res.status(400).json({ message: error.errors[0]?.message || "Invalid input" });
@@ -146,7 +170,13 @@ export async function registerRoutes(
       }
 
       req.session.userId = user.id;
-      res.json(toSafeUser(user));
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error (login):", err);
+          return res.status(500).json({ message: "Session error" });
+        }
+        res.json(toSafeUser(user));
+      });
     } catch (error: any) {
       if (error.name === "ZodError") {
         return res.status(400).json({ message: error.errors[0]?.message || "Invalid input" });
