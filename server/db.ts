@@ -54,6 +54,28 @@ export async function migrateIfNeeded() {
     `);
     console.log("[db] API keys table ensured");
 
+    // Add rate limit columns to api_keys (for existing deployments)
+    await client.query(`
+      ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "rate_limit" integer NOT NULL DEFAULT 1000;
+      ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "rate_limit_day" integer NOT NULL DEFAULT 10000;
+    `);
+
+    // Ensure api_usage_logs table exists
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "api_usage_logs" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "api_key_id" varchar NOT NULL,
+        "user_id" varchar NOT NULL,
+        "endpoint" text NOT NULL,
+        "status_code" integer NOT NULL,
+        "response_time_ms" integer,
+        "created_at" timestamp NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS "idx_usage_logs_key_created" ON "api_usage_logs" ("api_key_id", "created_at");
+      CREATE INDEX IF NOT EXISTS "idx_usage_logs_user_created" ON "api_usage_logs" ("user_id", "created_at");
+    `);
+    console.log("[db] API usage logs table ensured");
+
     // Check if main data tables already exist
     const result = await client.query(
       `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'creators'`

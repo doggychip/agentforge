@@ -135,6 +135,19 @@ export const apiKeys = pgTable("api_keys", {
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   revoked: boolean("revoked").notNull().default(false),
+  rateLimit: integer("rate_limit").notNull().default(1000),
+  rateLimitDay: integer("rate_limit_day").notNull().default(10000),
+});
+
+// API Usage Logs
+export const apiUsageLogs = pgTable("api_usage_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  apiKeyId: varchar("api_key_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  endpoint: text("endpoint").notNull(),
+  statusCode: integer("status_code").notNull(),
+  responseTimeMs: integer("response_time_ms"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Auth schemas
@@ -180,9 +193,13 @@ export type InsertReview = z.infer<typeof insertReviewSchema>;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 
-export const insertApiKeySchema = createInsertSchema(apiKeys).omit({ id: true, lastUsedAt: true, createdAt: true, revoked: true });
+export const insertApiKeySchema = createInsertSchema(apiKeys).omit({ id: true, lastUsedAt: true, createdAt: true, revoked: true, rateLimit: true, rateLimitDay: true });
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+
+export const insertApiUsageLogSchema = createInsertSchema(apiUsageLogs).omit({ id: true, createdAt: true });
+export type ApiUsageLog = typeof apiUsageLogs.$inferSelect;
+export type InsertApiUsageLog = z.infer<typeof insertApiUsageLogSchema>;
 
 // Safe user type (no password)
 export type SafeUser = Omit<User, "password">;

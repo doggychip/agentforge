@@ -39,21 +39,45 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-// API key or session auth middleware
-async function requireApiKeyOrSession(req: Request, res: Response, next: NextFunction) {
-  if (req.session.userId) {
-    return next();
+// In-memory rate limiter
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+const rateLimitDayStore = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(apiKeyId: string, hourlyLimit: number, dailyLimit: number): { allowed: boolean; retryAfterSec?: number; remaining: number; limit: number } {
+  const now = Date.now();
+
+  const hourKey = `h:${apiKeyId}`;
+  let hourEntry = rateLimitStore.get(hourKey);
+  if (!hourEntry || now >= hourEntry.resetAt) {
+    hourEntry = { count: 0, resetAt: now + 3600_000 };
+    rateLimitStore.set(hourKey, hourEntry);
   }
-  const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith("Bearer af_k_")) {
-    const token = authHeader.slice(7);
-    const hash = crypto.createHash("sha256").update(token).digest("hex");
-    const apiKey = await storage.getApiKeyByHash(hash);
-    if (apiKey && !apiKey.revoked) {
-      (req as any).apiKeyUserId = apiKey.userId;
-      storage.updateApiKeyLastUsed(apiKey.id).catch(() => {});
-      return next();
-    }
+
+  const dayKey = `d:${apiKeyId}`;
+  let dayEntry = rateLimitDayStore.get(dayKey);
+  if (!dayEntry || now >= dayEntry.resetAt) {
+    dayEntry = { count: 0, resetAt: now + 86400_000 };
+    rateLimitDayStore.set(dayKey, dayEntry);
+  }
+
+  if (hourEntry.count >= hourlyLimit) {
+    return { allowed: false, retryAfterSec: Math.ceil((hourEntry.resetAt - now) / 1000), remaining: 0, limit: hourlyLimit };
+  }
+  if (dayEntry.count >= dailyLimit) {
+    return { allowed: false, retryAfterSec: Math.ceil((dayEntry.resetAt - now) / 1000), remaining: 0, limit: dailyLimit };
+  }
+
+  hourEntry.count++;
+  dayEntry.count++;
+  return { allowed: true, remaining: hourlyLimit - hourEntry.count, limit: hourlyLimit };
+}
+
+// API key or session auth middleware
+// Note: Global middleware above already validated the key, set rate limits,
+// and attached apiKeyUserId. This just checks if either auth method succeeded.
+function requireApiKeyOrSession(req: Request, res: Response, next: NextFunction) {
+  if (req.session.userId || (req as any).apiKeyUserId) {
+    return next();
   }
   return res.status(401).json({ message: "Not authenticated" });
 }
@@ -105,6 +129,47 @@ export async function registerRoutes(
   }
 
   app.use(session(sessionConfig));
+
+  // ─── Global API Key Tracking Middleware ───────────────────────
+  // For ANY /api/* request with a Bearer API key, identify the key,
+  // apply rate limiting, set headers, and log usage — even on public endpoints.
+  app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer af_k_")) return next();
+
+    const token = authHeader.slice(7);
+    const hash = crypto.createHash("sha256").update(token).digest("hex");
+    const apiKey = await storage.getApiKeyByHash(hash);
+    if (!apiKey || apiKey.revoked) return next(); // let route-level middleware handle 401 if needed
+
+    // Rate limit check
+    const rl = checkRateLimit(apiKey.id, apiKey.rateLimit, apiKey.rateLimitDay);
+    if (!rl.allowed) {
+      res.set("Retry-After", String(rl.retryAfterSec));
+      return res.status(429).json({ message: "Rate limit exceeded", retryAfterSec: rl.retryAfterSec });
+    }
+    res.set("X-RateLimit-Limit", String(rl.limit));
+    res.set("X-RateLimit-Remaining", String(rl.remaining));
+
+    // Tag request with key info for route-level middleware
+    (req as any).apiKeyId = apiKey.id;
+    (req as any).apiKeyUserId = apiKey.userId;
+
+    // Usage logging on response finish
+    const start = Date.now();
+    res.on("finish", () => {
+      storage.logApiUsage({
+        apiKeyId: apiKey.id,
+        userId: apiKey.userId,
+        endpoint: `${req.method} ${req.baseUrl}${req.route?.path || req.path}`,
+        statusCode: res.statusCode,
+        responseTimeMs: Date.now() - start,
+      }).catch(() => {});
+    });
+
+    storage.updateApiKeyLastUsed(apiKey.id).catch(() => {});
+    next();
+  });
 
   // ─── Health Check ───────────────────────────────────────────
   app.get("/api/health", (_req, res) => {
@@ -908,6 +973,12 @@ export async function registerRoutes(
     res.json(safeKeys);
   });
 
+  // IMPORTANT: Register /api/keys/usage/stats BEFORE any /api/keys/:id/* routes
+  app.get("/api/keys/usage/stats", requireAuth, async (req, res) => {
+    const stats = await storage.getUsageStatsByUser(req.session.userId!);
+    res.json(stats);
+  });
+
   app.post("/api/keys", requireAuth, async (req, res) => {
     try {
       const { name } = req.body;
@@ -933,6 +1004,33 @@ export async function registerRoutes(
       console.error("Create API key error:", error);
       res.status(500).json({ message: "Failed to create API key" });
     }
+  });
+
+  app.get("/api/keys/:id/usage", requireAuth, async (req, res) => {
+    const keys = await storage.getApiKeysByUser(req.session.userId!);
+    const key = keys.find(k => k.id === req.params.id);
+    if (!key) return res.status(404).json({ message: "Key not found" });
+
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const logs = await storage.getUsageByKey(key.id, since);
+    const count = logs.length;
+    res.json({ count, logs: logs.slice(0, 100) });
+  });
+
+  app.patch("/api/keys/:id/rate-limit", requireAuth, async (req, res) => {
+    const keys = await storage.getApiKeysByUser(req.session.userId!);
+    const key = keys.find(k => k.id === req.params.id);
+    if (!key) return res.status(404).json({ message: "Key not found" });
+
+    const { rateLimit, rateLimitDay } = req.body;
+    const updates: any = {};
+    if (typeof rateLimit === "number" && rateLimit >= 10 && rateLimit <= 100000) updates.rateLimit = rateLimit;
+    if (typeof rateLimitDay === "number" && rateLimitDay >= 100 && rateLimitDay <= 1000000) updates.rateLimitDay = rateLimitDay;
+
+    if (Object.keys(updates).length === 0) return res.status(400).json({ message: "No valid rate limit values" });
+
+    await storage.updateApiKey(key.id, updates);
+    res.json({ success: true });
   });
 
   app.delete("/api/keys/:id", requireAuth, async (req, res) => {

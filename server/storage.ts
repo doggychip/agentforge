@@ -9,8 +9,9 @@ import {
   type Review, type InsertReview,
   type Notification, type InsertNotification,
   type ApiKey, type InsertApiKey,
+  type ApiUsageLog, type InsertApiUsageLog,
   users, creators, agents, posts, postLikes, comments, subscriptions,
-  creatorSubscriptions, reviews, notifications, apiKeys,
+  creatorSubscriptions, reviews, notifications, apiKeys, apiUsageLogs,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -89,6 +90,19 @@ export interface IStorage {
   getApiKeyByHash(keyHash: string): Promise<ApiKey | undefined>;
   revokeApiKey(id: string, userId: string): Promise<boolean>;
   updateApiKeyLastUsed(id: string): Promise<void>;
+  updateApiKey(id: string, data: Partial<ApiKey>): Promise<ApiKey | undefined>;
+
+  // Usage logging
+  logApiUsage(log: InsertApiUsageLog): Promise<void>;
+  getUsageByKey(apiKeyId: string, since: Date): Promise<ApiUsageLog[]>;
+  getUsageCountByKey(apiKeyId: string, since: Date): Promise<number>;
+  getUsageStatsByUser(userId: string): Promise<{
+    today: number;
+    thisWeek: number;
+    thisMonth: number;
+    byKey: { keyId: string; keyName: string; keyPrefix: string; count: number }[];
+    dailyCounts: { date: string; count: number }[];
+  }>;
 
   seed(): Promise<void>;
 }
@@ -349,6 +363,68 @@ class PgStorage implements IStorage {
   async updateApiKeyLastUsed(id: string) {
     await db!.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, id));
   }
+  async updateApiKey(id: string, data: Partial<ApiKey>) {
+    const [updated] = await db!.update(apiKeys).set(data).where(eq(apiKeys.id, id)).returning();
+    return updated;
+  }
+
+  // Usage logging (Pg)
+  async logApiUsage(log: InsertApiUsageLog) {
+    await db!.insert(apiUsageLogs).values(log);
+  }
+  async getUsageByKey(apiKeyId: string, since: Date) {
+    return db!.select().from(apiUsageLogs)
+      .where(and(eq(apiUsageLogs.apiKeyId, apiKeyId), sql`${apiUsageLogs.createdAt} >= ${since}`))
+      .orderBy(desc(apiUsageLogs.createdAt));
+  }
+  async getUsageCountByKey(apiKeyId: string, since: Date) {
+    const [result] = await db!.select({ count: sql<number>`count(*)::int` }).from(apiUsageLogs)
+      .where(and(eq(apiUsageLogs.apiKeyId, apiKeyId), sql`${apiUsageLogs.createdAt} >= ${since}`));
+    return result?.count ?? 0;
+  }
+  async getUsageStatsByUser(userId: string) {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 86400_000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400_000);
+
+    const [todayResult] = await db!.select({ count: sql<number>`count(*)::int` }).from(apiUsageLogs)
+      .where(and(eq(apiUsageLogs.userId, userId), sql`${apiUsageLogs.createdAt} >= ${startOfToday}`));
+    const [weekResult] = await db!.select({ count: sql<number>`count(*)::int` }).from(apiUsageLogs)
+      .where(and(eq(apiUsageLogs.userId, userId), sql`${apiUsageLogs.createdAt} >= ${sevenDaysAgo}`));
+    const [monthResult] = await db!.select({ count: sql<number>`count(*)::int` }).from(apiUsageLogs)
+      .where(and(eq(apiUsageLogs.userId, userId), sql`${apiUsageLogs.createdAt} >= ${thirtyDaysAgo}`));
+
+    const byKeyRows = await db!
+      .select({
+        keyId: apiUsageLogs.apiKeyId,
+        keyName: apiKeys.name,
+        keyPrefix: apiKeys.keyPrefix,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(apiUsageLogs)
+      .innerJoin(apiKeys, eq(apiUsageLogs.apiKeyId, apiKeys.id))
+      .where(and(eq(apiUsageLogs.userId, userId), sql`${apiUsageLogs.createdAt} >= ${thirtyDaysAgo}`))
+      .groupBy(apiUsageLogs.apiKeyId, apiKeys.name, apiKeys.keyPrefix);
+
+    const dailyRows = await db!
+      .select({
+        date: sql<string>`to_char(${apiUsageLogs.createdAt}, 'YYYY-MM-DD')`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(apiUsageLogs)
+      .where(and(eq(apiUsageLogs.userId, userId), sql`${apiUsageLogs.createdAt} >= ${thirtyDaysAgo}`))
+      .groupBy(sql`to_char(${apiUsageLogs.createdAt}, 'YYYY-MM-DD')`)
+      .orderBy(sql`to_char(${apiUsageLogs.createdAt}, 'YYYY-MM-DD')`);
+
+    return {
+      today: todayResult?.count ?? 0,
+      thisWeek: weekResult?.count ?? 0,
+      thisMonth: monthResult?.count ?? 0,
+      byKey: byKeyRows,
+      dailyCounts: dailyRows,
+    };
+  }
 
   async seed() {
     const existing = await db!.select().from(creators).limit(1);
@@ -373,6 +449,7 @@ class MemStorage implements IStorage {
   private reviewsMap: Map<string, Review>;
   private notificationsMap: Map<string, Notification>;
   private apiKeysMap: Map<string, ApiKey>;
+  private apiUsageLogsArr: ApiUsageLog[];
 
   constructor() {
     this.usersMap = new Map();
@@ -386,6 +463,7 @@ class MemStorage implements IStorage {
     this.reviewsMap = new Map();
     this.notificationsMap = new Map();
     this.apiKeysMap = new Map();
+    this.apiUsageLogsArr = [];
   }
 
   async seed() {
@@ -632,7 +710,7 @@ class MemStorage implements IStorage {
   }
   async createApiKey(key: InsertApiKey) {
     const id = randomUUID();
-    const apiKey: ApiKey = { ...key, id, lastUsedAt: null, createdAt: new Date(), revoked: false };
+    const apiKey: ApiKey = { ...key, id, lastUsedAt: null, createdAt: new Date(), revoked: false, rateLimit: key.rateLimit ?? 1000, rateLimitDay: key.rateLimitDay ?? 10000 };
     this.apiKeysMap.set(id, apiKey);
     return apiKey;
   }
@@ -648,6 +726,58 @@ class MemStorage implements IStorage {
   async updateApiKeyLastUsed(id: string) {
     const key = this.apiKeysMap.get(id);
     if (key) key.lastUsedAt = new Date();
+  }
+  async updateApiKey(id: string, data: Partial<ApiKey>) {
+    const key = this.apiKeysMap.get(id);
+    if (!key) return undefined;
+    Object.assign(key, data);
+    return key;
+  }
+
+  // Usage logging (Mem)
+  async logApiUsage(log: InsertApiUsageLog) {
+    const entry: ApiUsageLog = { ...log, id: randomUUID(), createdAt: new Date(), responseTimeMs: log.responseTimeMs ?? null };
+    this.apiUsageLogsArr.push(entry);
+  }
+  async getUsageByKey(apiKeyId: string, since: Date) {
+    return this.apiUsageLogsArr
+      .filter(l => l.apiKeyId === apiKeyId && l.createdAt >= since)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  async getUsageCountByKey(apiKeyId: string, since: Date) {
+    return this.apiUsageLogsArr.filter(l => l.apiKeyId === apiKeyId && l.createdAt >= since).length;
+  }
+  async getUsageStatsByUser(userId: string) {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 86400_000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400_000);
+
+    const userLogs = this.apiUsageLogsArr.filter(l => l.userId === userId);
+    const today = userLogs.filter(l => l.createdAt >= startOfToday).length;
+    const thisWeek = userLogs.filter(l => l.createdAt >= sevenDaysAgo).length;
+    const thisMonth = userLogs.filter(l => l.createdAt >= thirtyDaysAgo).length;
+
+    const monthLogs = userLogs.filter(l => l.createdAt >= thirtyDaysAgo);
+    const byKeyMap = new Map<string, number>();
+    for (const l of monthLogs) {
+      byKeyMap.set(l.apiKeyId, (byKeyMap.get(l.apiKeyId) ?? 0) + 1);
+    }
+    const byKey = Array.from(byKeyMap.entries()).map(([keyId, count]) => {
+      const k = this.apiKeysMap.get(keyId);
+      return { keyId, keyName: k?.name ?? "", keyPrefix: k?.keyPrefix ?? "", count };
+    });
+
+    const dailyMap = new Map<string, number>();
+    for (const l of monthLogs) {
+      const date = l.createdAt.toISOString().slice(0, 10);
+      dailyMap.set(date, (dailyMap.get(date) ?? 0) + 1);
+    }
+    const dailyCounts = Array.from(dailyMap.entries())
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return { today, thisWeek, thisMonth, byKey, dailyCounts };
   }
 }
 

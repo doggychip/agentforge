@@ -43,7 +43,11 @@ import {
 } from "@/components/ui/table";
 import {
   Key, Plus, Copy, Check, Trash2, Loader2, AlertTriangle, Terminal,
+  Activity, TrendingUp, BarChart3, Clock, Settings2,
 } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+} from "recharts";
 
 interface ApiKeyResponse {
   id: string;
@@ -53,10 +57,20 @@ interface ApiKeyResponse {
   lastUsedAt: string | null;
   createdAt: string;
   revoked: boolean;
+  rateLimit: number;
+  rateLimitDay: number;
 }
 
 interface CreateKeyResponse extends ApiKeyResponse {
   key: string;
+}
+
+interface UsageStats {
+  today: number;
+  thisWeek: number;
+  thisMonth: number;
+  byKey: { keyId: string; keyName: string; keyPrefix: string; count: number }[];
+  dailyCounts: { date: string; count: number }[];
 }
 
 function formatDate(date: string | null) {
@@ -66,6 +80,10 @@ function formatDate(date: string | null) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function formatNumber(n: number) {
+  return n.toLocaleString();
 }
 
 export default function ApiKeys() {
@@ -78,11 +96,23 @@ export default function ApiKeys() {
   const [showKeyDialog, setShowKeyDialog] = useState(false);
   const [copied, setCopied] = useState(false);
   const [revokeTarget, setRevokeTarget] = useState<ApiKeyResponse | null>(null);
+  const [editRateLimit, setEditRateLimit] = useState<ApiKeyResponse | null>(null);
+  const [rlHourly, setRlHourly] = useState("");
+  const [rlDaily, setRlDaily] = useState("");
 
   const { data: keys, isLoading: loadingKeys } = useQuery<ApiKeyResponse[]>({
     queryKey: ["/api/keys"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/keys");
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const { data: usageStats } = useQuery<UsageStats>({
+    queryKey: ["/api/keys/usage/stats"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/keys/usage/stats");
       return res.json();
     },
     enabled: !!user,
@@ -120,6 +150,21 @@ export default function ApiKeys() {
     },
   });
 
+  const updateRateLimitMutation = useMutation({
+    mutationFn: async ({ id, rateLimit, rateLimitDay }: { id: string; rateLimit: number; rateLimitDay: number }) => {
+      const res = await apiRequest("PATCH", `/api/keys/${id}/rate-limit`, { rateLimit, rateLimitDay });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Rate limits updated" });
+      setEditRateLimit(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/keys"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to update rate limits", variant: "destructive" });
+    },
+  });
+
   async function copyToClipboard() {
     if (!newKey) return;
     try {
@@ -149,6 +194,20 @@ export default function ApiKeys() {
   const activeKeys = keys?.filter((k) => !k.revoked) ?? [];
   const revokedKeys = keys?.filter((k) => k.revoked) ?? [];
 
+  // Map usage count per key
+  const usageByKeyMap = new Map<string, number>();
+  if (usageStats?.byKey) {
+    for (const bk of usageStats.byKey) {
+      usageByKeyMap.set(bk.keyId, bk.count);
+    }
+  }
+
+  const statCards = [
+    { label: "Today", value: usageStats?.today ?? 0, icon: Activity, color: "text-blue-500" },
+    { label: "This Week", value: usageStats?.thisWeek ?? 0, icon: TrendingUp, color: "text-emerald-500" },
+    { label: "This Month", value: usageStats?.thisMonth ?? 0, icon: BarChart3, color: "text-purple-500" },
+  ];
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="mb-6">
@@ -160,6 +219,54 @@ export default function ApiKeys() {
           Generate API keys to access AgentForge programmatically. Keys let AI agents authenticate and consume subscribed content via API.
         </p>
       </div>
+
+      {/* Usage Overview Cards */}
+      <div className="grid grid-cols-3 gap-3 mb-6" data-testid="section-usage-overview">
+        {statCards.map((s) => (
+          <Card key={s.label}>
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground">{s.label}</span>
+                <s.icon size={14} className={s.color} />
+              </div>
+              <p className="text-lg font-bold" data-testid={`stat-${s.label.toLowerCase().replace(/\s/g, "-")}`}>
+                {formatNumber(s.value)}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Usage Chart */}
+      {usageStats && usageStats.dailyCounts.length > 0 && (
+        <Card className="mb-6" data-testid="section-usage-chart">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <BarChart3 size={14} />
+              API Calls (Last 30 Days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={usageStats.dailyCounts}>
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(d: string) => d.slice(5)}
+                  interval="preserveStartEnd"
+                />
+                <YAxis tick={{ fontSize: 10 }} width={40} />
+                <Tooltip
+                  labelFormatter={(d: string) => d}
+                  formatter={(value: number) => [formatNumber(value), "Calls"]}
+                  contentStyle={{ fontSize: 12 }}
+                />
+                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Create Key */}
       <Card className="mb-6" data-testid="section-create-key">
@@ -221,6 +328,8 @@ export default function ApiKeys() {
                   <TableRow>
                     <TableHead className="text-xs">Name</TableHead>
                     <TableHead className="text-xs">Key</TableHead>
+                    <TableHead className="text-xs">Calls</TableHead>
+                    <TableHead className="text-xs">Rate Limit</TableHead>
                     <TableHead className="text-xs">Created</TableHead>
                     <TableHead className="text-xs">Last Used</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
@@ -232,6 +341,23 @@ export default function ApiKeys() {
                     <TableRow key={k.id} data-testid={`key-row-${k.id}`}>
                       <TableCell className="text-sm font-medium">{k.name}</TableCell>
                       <TableCell className="text-xs font-mono text-muted-foreground">{k.keyPrefix}...</TableCell>
+                      <TableCell className="text-xs text-muted-foreground" data-testid={`key-calls-${k.id}`}>
+                        {formatNumber(usageByKeyMap.get(k.id) ?? 0)}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        <button
+                          className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                          onClick={() => {
+                            setEditRateLimit(k);
+                            setRlHourly(String(k.rateLimit));
+                            setRlDaily(String(k.rateLimitDay));
+                          }}
+                          data-testid={`button-edit-rate-limit-${k.id}`}
+                        >
+                          {formatNumber(k.rateLimit)}/hr | {formatNumber(k.rateLimitDay)}/day
+                          <Settings2 size={11} />
+                        </button>
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{formatDate(k.createdAt)}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{formatDate(k.lastUsedAt)}</TableCell>
                       <TableCell>
@@ -254,6 +380,8 @@ export default function ApiKeys() {
                     <TableRow key={k.id} className="opacity-50" data-testid={`key-row-${k.id}`}>
                       <TableCell className="text-sm">{k.name}</TableCell>
                       <TableCell className="text-xs font-mono text-muted-foreground">{k.keyPrefix}...</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">—</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{formatDate(k.createdAt)}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{formatDate(k.lastUsedAt)}</TableCell>
                       <TableCell>
@@ -291,6 +419,12 @@ export default function ApiKeys() {
             curl -H "Authorization: Bearer af_k_..." \
             <br />
             &nbsp;&nbsp;{typeof window !== "undefined" ? window.location.origin : "https://your-domain.com"}/api/agents/:id/subscription-status
+            <br /><br />
+            <span className="text-muted-foreground"># Response headers include rate limit info:</span>
+            <br />
+            <span className="text-muted-foreground"># X-RateLimit-Limit: 1000</span>
+            <br />
+            <span className="text-muted-foreground"># X-RateLimit-Remaining: 997</span>
           </div>
         </CardContent>
       </Card>
@@ -360,6 +494,74 @@ export default function ApiKeys() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Rate Limit Dialog */}
+      <Dialog open={!!editRateLimit} onOpenChange={(open) => { if (!open) setEditRateLimit(null); }}>
+        <DialogContent className="sm:max-w-sm" data-testid="dialog-edit-rate-limit">
+          <DialogHeader>
+            <DialogTitle className="text-base flex items-center gap-2">
+              <Settings2 size={16} />
+              Rate Limits
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Set hourly and daily request limits for "{editRateLimit?.name}".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Requests per hour</label>
+              <Input
+                type="number"
+                value={rlHourly}
+                onChange={(e) => setRlHourly(e.target.value)}
+                min={10}
+                max={100000}
+                className="text-sm"
+                data-testid="input-rate-limit-hourly"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Requests per day</label>
+              <Input
+                type="number"
+                value={rlDaily}
+                onChange={(e) => setRlDaily(e.target.value)}
+                min={100}
+                max={1000000}
+                className="text-sm"
+                data-testid="input-rate-limit-daily"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => setEditRateLimit(null)}
+              data-testid="button-cancel-rate-limit"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="text-xs"
+              disabled={updateRateLimitMutation.isPending}
+              onClick={() => {
+                if (!editRateLimit) return;
+                updateRateLimitMutation.mutate({
+                  id: editRateLimit.id,
+                  rateLimit: parseInt(rlHourly, 10) || editRateLimit.rateLimit,
+                  rateLimitDay: parseInt(rlDaily, 10) || editRateLimit.rateLimitDay,
+                });
+              }}
+              data-testid="button-save-rate-limit"
+            >
+              {updateRateLimitMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
