@@ -7,7 +7,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Notification } from "@shared/schema";
 import {
   Sun, Moon, Bot, Compass, Users, Zap, Menu, X, LogOut, User as UserIcon, Newspaper, PenSquare,
-  Bell, Heart, MessageCircle, UserPlus, FileText
+  Bell, Heart, MessageCircle, UserPlus, FileText, LayoutDashboard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -172,6 +172,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout, isLoading } = useAuth();
 
+  const { data: creatorProfile } = useQuery<{ id: string } | null>({
+    queryKey: ["/api/creators/me"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", "/api/creators/me");
+        return res.json();
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!user,
+  });
+
   function getInitials(name: string) {
     return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
   }
@@ -252,6 +265,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                           Profile
                         </DropdownMenuItem>
                       </Link>
+                      {creatorProfile && (
+                        <Link href="/dashboard" className="no-underline">
+                          <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-dashboard">
+                            <LayoutDashboard size={14} />
+                            Dashboard
+                          </DropdownMenuItem>
+                        </Link>
+                      )}
                       <Link href="/new-post" className="no-underline">
                         <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-write">
                           <PenSquare size={14} />

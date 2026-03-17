@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   ArrowLeft, Shield, Bot, Wrench, FileText, Globe,
-  Star, Download, Users, Heart, MessageCircle, Clock, Bell, BellOff, Lock,
+  Star, Download, Users, Heart, MessageCircle, Clock, Bell, BellOff, Lock, CheckCircle,
 } from "lucide-react";
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -105,6 +105,10 @@ export default function CreatorDetail() {
   const creatorPosts = data.posts || [];
   const isSubscribed = data.isSubscribed;
 
+  const totalDownloads = agents.reduce((sum, a) => sum + a.downloads, 0);
+  const totalStars = agents.reduce((sum, a) => sum + a.stars, 0);
+  const avgRating = agents.length > 0 ? (totalStars / Math.max(agents.length, 1)) : 0;
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       {/* Back */}
@@ -112,60 +116,84 @@ export default function CreatorDetail() {
         <ArrowLeft size={14} /> Back to creators
       </Link>
 
-      {/* Creator Header */}
-      <div className="flex flex-col sm:flex-row gap-5 mb-8 items-start">
-        <img
-          src={creator.avatar}
-          alt={creator.name}
-          className="w-16 h-16 rounded-full bg-muted shrink-0"
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-xl font-bold text-foreground">{creator.name}</h1>
-            {creator.verified && (
-              <Badge variant="secondary" className="text-[10px] gap-1 font-medium">
-                <Shield size={10} /> Verified
-              </Badge>
+      {/* Creator Header with subtle gradient background */}
+      <div className="rounded-xl bg-primary/5 border border-border p-6 mb-6" data-testid="section-creator-header">
+        <div className="flex flex-col sm:flex-row gap-5 items-start">
+          <img
+            src={creator.avatar}
+            alt={creator.name}
+            className="w-16 h-16 rounded-full bg-muted shrink-0 ring-2 ring-background shadow-sm"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h1 className="text-xl font-bold text-foreground">{creator.name}</h1>
+              {creator.verified && (
+                <Badge variant="secondary" className="text-[10px] gap-1 font-medium">
+                  <Shield size={10} /> Verified
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mb-2">@{creator.handle}</p>
+            <p className="text-sm text-muted-foreground leading-relaxed max-w-lg">
+              {creator.bio}
+            </p>
+
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {creator.tags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="text-xs font-medium">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          {/* Subscribe Button — bigger and more prominent on mobile */}
+          <Button
+            className={`sm:shrink-0 w-full sm:w-auto h-10 sm:h-9 text-sm font-medium gap-1.5 ${!isSubscribed ? "shadow-sm" : ""}`}
+            variant={isSubscribed ? "outline" : "default"}
+            onClick={() => subscribeMutation.mutate()}
+            disabled={subscribeMutation.isPending}
+            data-testid="button-follow"
+          >
+            {subscribeMutation.isPending ? "..." : isSubscribed ? (
+              <><CheckCircle size={14} /> Subscribed</>
+            ) : (
+              <><Bell size={14} /> Subscribe</>
             )}
-          </div>
-          <p className="text-xs text-muted-foreground mb-2">@{creator.handle}</p>
-          <p className="text-sm text-muted-foreground leading-relaxed max-w-lg">
-            {creator.bio}
-          </p>
-
-          <div className="flex items-center gap-4 mt-3 text-sm">
-            <span className="flex items-center gap-1.5 text-muted-foreground">
-              <Users size={14} />
-              <span className="font-medium text-foreground">{formatNumber(creator.subscribers)}</span> subscribers
-            </span>
-            <span className="flex items-center gap-1.5 text-muted-foreground">
-              <Bot size={14} />
-              <span className="font-medium text-foreground">{agents.length}</span> agents
-            </span>
-          </div>
-
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {creator.tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-xs font-medium">
-                {tag}
-              </Badge>
-            ))}
-          </div>
+          </Button>
         </div>
 
-        <Button
-          className={`h-9 text-sm font-medium sm:shrink-0 gap-1.5 ${isSubscribed ? "" : ""}`}
-          variant={isSubscribed ? "outline" : "default"}
-          onClick={() => subscribeMutation.mutate()}
-          disabled={subscribeMutation.isPending}
-          data-testid="button-follow"
-        >
-          {subscribeMutation.isPending ? "..." : isSubscribed ? (
-            <><BellOff size={14} /> Unsubscribe</>
-          ) : (
-            <><Bell size={14} /> Subscribe</>
-          )}
-        </Button>
+        {/* Stats bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-5 border-t border-border/50" data-testid="section-stats-bar">
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1.5 mb-1 text-muted-foreground">
+              <Users size={13} />
+            </div>
+            <p className="text-lg font-bold text-foreground">{formatNumber(creator.subscribers)}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Subscribers</p>
+          </div>
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1.5 mb-1 text-muted-foreground">
+              <Bot size={13} />
+            </div>
+            <p className="text-lg font-bold text-foreground">{agents.length}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Agents</p>
+          </div>
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1.5 mb-1 text-muted-foreground">
+              <Download size={13} />
+            </div>
+            <p className="text-lg font-bold text-foreground">{formatNumber(totalDownloads)}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Downloads</p>
+          </div>
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1.5 mb-1 text-muted-foreground">
+              <Star size={13} />
+            </div>
+            <p className="text-lg font-bold text-foreground">{avgRating > 0 ? avgRating.toFixed(1) : "--"}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Rating</p>
+          </div>
+        </div>
       </div>
 
       {/* Tabs: Agents + Posts */}
@@ -182,57 +210,62 @@ export default function CreatorDetail() {
         </TabsList>
 
         <TabsContent value="agents">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {agents.map((agent) => (
-              <Link
-                key={agent.id}
-                href={`/agents/${agent.id}`}
-                className="group block no-underline"
-                data-testid={`card-agent-${agent.id}`}
-              >
-                <div className="rounded-lg border border-border bg-card p-4 h-full transition-all duration-200 hover:border-primary/30 hover:shadow-md">
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0 text-primary">
-                        {categoryIcons[agent.category]}
+          {agents.length === 0 ? (
+            <div className="text-center py-12 rounded-lg border border-dashed border-border" data-testid="empty-agents">
+              <Bot size={28} className="mx-auto mb-3 text-muted-foreground opacity-40" />
+              <p className="text-sm text-muted-foreground mb-1">This creator hasn't published any agents yet.</p>
+              <p className="text-xs text-muted-foreground">Subscribe to get notified when they do.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {agents.map((agent) => (
+                <Link
+                  key={agent.id}
+                  href={`/agents/${agent.id}`}
+                  className="group block no-underline"
+                  data-testid={`card-agent-${agent.id}`}
+                >
+                  <div className="rounded-lg border border-border bg-card p-4 h-full transition-all duration-200 hover:border-primary/30 hover:shadow-md">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                          {categoryIcons[agent.category]}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                            {agent.name}
+                          </h3>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                          {agent.name}
-                        </h3>
+                      <Badge variant="secondary" className="text-[10px] font-medium shrink-0 uppercase tracking-wider">
+                        {agent.category}
+                      </Badge>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mb-3">
+                      {agent.description}
+                    </p>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-border">
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Star size={12} className="text-yellow-500" />
+                          {formatNumber(agent.stars)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Download size={12} />
+                          {formatNumber(agent.downloads)}
+                        </span>
                       </div>
-                    </div>
-                    <Badge variant="secondary" className="text-[10px] font-medium shrink-0 uppercase tracking-wider">
-                      {agent.category}
-                    </Badge>
-                  </div>
-
-                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mb-3">
-                    {agent.description}
-                  </p>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-border">
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Star size={12} className="text-yellow-500" />
-                        {formatNumber(agent.stars)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Download size={12} />
-                        {formatNumber(agent.downloads)}
+                      <span className={`text-xs font-semibold ${agent.pricing === "free" ? "text-emerald-500" : "text-primary"}`}>
+                        {formatPrice(agent.price, agent.pricing)}
                       </span>
                     </div>
-                    <span className={`text-xs font-semibold ${agent.pricing === "free" ? "text-emerald-500" : "text-primary"}`}>
-                      {formatPrice(agent.price, agent.pricing)}
-                    </span>
                   </div>
-                </div>
-              </Link>
-            ))}
-            {agents.length === 0 && (
-              <p className="text-sm text-muted-foreground col-span-2 text-center py-8">No agents published yet.</p>
-            )}
-          </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="posts">
@@ -263,7 +296,7 @@ export default function CreatorDetail() {
                     </div>
                     {post.excerpt && (
                       <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                        {isGated ? post.excerpt : post.excerpt}
+                        {post.excerpt}
                       </p>
                     )}
                     <div className="flex flex-wrap gap-1.5 mb-3">

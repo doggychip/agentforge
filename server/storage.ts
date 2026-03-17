@@ -35,6 +35,9 @@ export interface IStorage {
   getFeaturedAgents(): Promise<Agent[]>;
   getAgentsByCategory(category: string): Promise<Agent[]>;
   searchAgents(query: string): Promise<Agent[]>;
+  createAgent(agent: InsertAgent): Promise<Agent>;
+  updateAgent(id: string, data: Partial<Agent>): Promise<Agent | undefined>;
+  deleteAgent(id: string): Promise<void>;
 
   getPosts(limit?: number): Promise<Post[]>;
   getPost(id: string): Promise<Post | undefined>;
@@ -141,6 +144,17 @@ class PgStorage implements IStorage {
     return db!.select().from(agents).where(
       or(ilike(agents.name, pattern), ilike(agents.description, pattern))
     );
+  }
+  async createAgent(insertAgent: InsertAgent) {
+    const [agent] = await db!.insert(agents).values(insertAgent).returning();
+    return agent;
+  }
+  async updateAgent(id: string, data: Partial<Agent>) {
+    const [updated] = await db!.update(agents).set(data).where(eq(agents.id, id)).returning();
+    return updated;
+  }
+  async deleteAgent(id: string) {
+    await db!.delete(agents).where(eq(agents.id, id));
   }
 
   async getPosts(limit = 50) {
@@ -398,6 +412,21 @@ class MemStorage implements IStorage {
     return Array.from(this.agentsMap.values()).filter(a =>
       a.name.toLowerCase().includes(q) || a.description.toLowerCase().includes(q) || a.tags.some(t => t.toLowerCase().includes(q))
     );
+  }
+  async createAgent(insertAgent: InsertAgent) {
+    const id = randomUUID();
+    const agent: Agent = { ...insertAgent, id, stars: 0, downloads: 0, status: "active", featured: false, longDescription: insertAgent.longDescription ?? null, price: insertAgent.price ?? null, currency: insertAgent.currency ?? "USD", apiEndpoint: insertAgent.apiEndpoint ?? null };
+    this.agentsMap.set(id, agent);
+    return agent;
+  }
+  async updateAgent(id: string, data: Partial<Agent>) {
+    const agent = this.agentsMap.get(id);
+    if (!agent) return undefined;
+    Object.assign(agent, data);
+    return agent;
+  }
+  async deleteAgent(id: string) {
+    this.agentsMap.delete(id);
   }
 
   async getPosts(limit = 50) {

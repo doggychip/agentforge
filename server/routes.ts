@@ -5,7 +5,7 @@ import connectPgSimple from "connect-pg-simple";
 import pg from "pg";
 import Stripe from "stripe";
 import { storage } from "./storage";
-import { registerSchema, loginSchema, type SafeUser } from "@shared/schema";
+import { registerSchema, loginSchema, insertAgentSchema, type SafeUser } from "@shared/schema";
 import bcrypt from "bcryptjs";
 
 // Stripe setup — set STRIPE_SECRET_KEY in environment
@@ -195,13 +195,17 @@ export async function registerRoutes(
   // ─── Agents ──────────────────────────────────────────────────
 
   app.get("/api/agents", async (_req, res) => {
-    const { category, search, featured } = _req.query;
+    const { category, search, featured, creator } = _req.query;
     if (featured === "true") {
       const agents = await storage.getFeaturedAgents();
       return res.json(agents);
     }
     if (search && typeof search === "string") {
       const agents = await storage.searchAgents(search);
+      return res.json(agents);
+    }
+    if (creator && typeof creator === "string") {
+      const agents = await storage.getAgentsByCreator(creator);
       return res.json(agents);
     }
     if (category && typeof category === "string") {
@@ -216,6 +220,98 @@ export async function registerRoutes(
     const agent = await storage.getAgent(req.params.id);
     if (!agent) return res.status(404).json({ message: "Agent not found" });
     res.json(agent);
+  });
+
+  // ─── Creator Agent CRUD ─────────────────────────────────────
+
+  // Create agent for current creator
+  app.post("/api/creators/me/agents", requireAuth, async (req, res) => {
+    try {
+      const creator = await storage.getCreatorByUserId(req.session.userId!);
+      if (!creator) return res.status(403).json({ message: "You need a creator profile first" });
+
+      const agentData = insertAgentSchema.parse({
+        ...req.body,
+        creatorId: creator.id,
+      });
+      const agent = await storage.createAgent(agentData);
+      await storage.updateCreator(creator.id, { agentCount: creator.agentCount + 1 });
+      res.status(201).json(agent);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.errors[0]?.message || "Invalid input" });
+      }
+      console.error("Create agent error:", error);
+      res.status(500).json({ message: "Failed to create agent" });
+    }
+  });
+
+  // Update agent for current creator
+  app.put("/api/creators/me/agents/:id", requireAuth, async (req, res) => {
+    try {
+      const creator = await storage.getCreatorByUserId(req.session.userId!);
+      if (!creator) return res.status(403).json({ message: "You need a creator profile first" });
+
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) return res.status(404).json({ message: "Agent not found" });
+      if (agent.creatorId !== creator.id) return res.status(403).json({ message: "Not your agent" });
+
+      const allowedFields = ["name", "description", "longDescription", "category", "pricing", "price", "tags", "apiEndpoint", "status"] as const;
+      const updateData: Record<string, any> = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updateData[field] = req.body[field];
+        }
+      }
+
+      const updated = await storage.updateAgent(req.params.id, updateData);
+      if (!updated) return res.status(404).json({ message: "Agent not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Update agent error:", error);
+      res.status(500).json({ message: "Failed to update agent" });
+    }
+  });
+
+  // Delete agent for current creator
+  app.delete("/api/creators/me/agents/:id", requireAuth, async (req, res) => {
+    try {
+      const creator = await storage.getCreatorByUserId(req.session.userId!);
+      if (!creator) return res.status(403).json({ message: "You need a creator profile first" });
+
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) return res.status(404).json({ message: "Agent not found" });
+      if (agent.creatorId !== creator.id) return res.status(403).json({ message: "Not your agent" });
+
+      await storage.deleteAgent(req.params.id);
+      await storage.updateCreator(creator.id, { agentCount: Math.max(0, creator.agentCount - 1) });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete agent error:", error);
+      res.status(500).json({ message: "Failed to delete agent" });
+    }
+  });
+
+  // Dashboard stats for current creator
+  app.get("/api/creators/me/dashboard-stats", requireAuth, async (req, res) => {
+    try {
+      const creator = await storage.getCreatorByUserId(req.session.userId!);
+      if (!creator) return res.status(403).json({ message: "You need a creator profile first" });
+
+      const creatorAgents = await storage.getAgentsByCreator(creator.id);
+      const totalDownloads = creatorAgents.reduce((sum, a) => sum + a.downloads, 0);
+      const totalStars = creatorAgents.reduce((sum, a) => sum + a.stars, 0);
+
+      res.json({
+        subscribers: creator.subscribers,
+        agentCount: creatorAgents.length,
+        totalDownloads,
+        totalStars,
+      });
+    } catch (error) {
+      console.error("Dashboard stats error:", error);
+      res.status(500).json({ message: "Failed to get dashboard stats" });
+    }
   });
 
   // ─── Creators ────────────────────────────────────────────────
