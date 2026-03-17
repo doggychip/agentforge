@@ -361,8 +361,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <span>&copy; 2026 AgentForge</span>
           </div>
           <div className="flex items-center gap-4">
-            <span>Docs</span>
-            <span>API</span>
+            <Link href="/docs" className="text-muted-foreground hover:text-foreground no-underline">Docs</Link>
+            <Link href="/docs" className="text-muted-foreground hover:text-foreground no-underline">API</Link>
             <span>Status</span>
             <PerplexityAttribution />
           </div>

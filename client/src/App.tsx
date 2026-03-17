@@ -20,6 +20,7 @@ import BecomeCreator from "@/pages/BecomeCreator";
 import Profile from "@/pages/Profile";
 import Dashboard from "@/pages/Dashboard";
 import ApiKeys from "@/pages/ApiKeys";
+import ApiDocs from "@/pages/ApiDocs";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -38,6 +39,7 @@ function AppRouter() {
         <Route path="/profile" component={Profile} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/settings/api-keys" component={ApiKeys} />
+        <Route path="/docs" component={ApiDocs} />
         <Route path="/auth" component={Auth} />
         <Route component={NotFound} />
       </Switch>
