@@ -504,6 +504,18 @@ export async function registerRoutes(
     });
   });
 
+  // ─── TEMP: Admin override for testing Stripe Connect ────────
+  app.post("/api/admin/stripe-override", requireAuth, async (req, res) => {
+    const { creatorId, stripeAccountId } = req.body;
+    if (!creatorId || !stripeAccountId) return res.status(400).json({ message: "Need creatorId and stripeAccountId" });
+    try {
+      const updated = await storage.updateCreator(creatorId, { stripeAccountId, stripeOnboarded: true });
+      res.json({ success: true, creator: updated });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // ─── Stripe Connect: Creator Onboarding ─────────────────────
 
   // Create Stripe Express account for a creator and return onboarding link
