@@ -2,8 +2,12 @@ import { Link, useLocation } from "wouter";
 import { useTheme } from "./ThemeProvider";
 import { PerplexityAttribution } from "./PerplexityAttribution";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { Notification } from "@shared/schema";
 import {
-  Sun, Moon, Bot, Compass, Users, Zap, Menu, X, LogOut, User as UserIcon, Newspaper, PenSquare
+  Sun, Moon, Bot, Compass, Users, Zap, Menu, X, LogOut, User as UserIcon, Newspaper, PenSquare,
+  Bell, Heart, MessageCircle, UserPlus, FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useState } from "react";
 
@@ -35,6 +40,131 @@ const navItems = [
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/creators", label: "Creators", icon: Users },
 ];
+
+const notifIcons: Record<string, React.ReactNode> = {
+  like: <Heart size={13} className="text-rose-500" />,
+  comment: <MessageCircle size={13} className="text-blue-500" />,
+  subscribe: <UserPlus size={13} className="text-emerald-500" />,
+  new_post: <FileText size={13} className="text-amber-500" />,
+};
+
+function timeAgo(date: string | Date) {
+  const now = new Date();
+  const d = new Date(date);
+  const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
+function NotificationBell() {
+  const [open, setOpen] = useState(false);
+
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: ["/api/notifications/unread-count"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", "/api/notifications/unread-count");
+        return await res.json();
+      } catch { return { count: 0 }; }
+    },
+    refetchInterval: 30000, // poll every 30s
+  });
+
+  const { data: notifications } = useQuery<Notification[]>({
+    queryKey: ["/api/notifications"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", "/api/notifications?limit=15");
+        return await res.json();
+      } catch { return []; }
+    },
+    enabled: open,
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/notifications/mark-read", {});
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(["/api/notifications/unread-count"], { count: 0 });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+    },
+  });
+
+  const unreadCount = unreadData?.count ?? 0;
+
+  return (
+    <Popover open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen);
+      if (isOpen) {
+        queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      }
+    }}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8 relative" data-testid="button-notifications">
+          <Bell size={16} />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-0" data-testid="notifications-dropdown">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+          <span className="text-sm font-semibold">Notifications</span>
+          {unreadCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-[11px] text-primary hover:text-primary"
+              onClick={() => markReadMutation.mutate()}
+              data-testid="button-mark-all-read"
+            >
+              Mark all read
+            </Button>
+          )}
+        </div>
+        <div className="max-h-80 overflow-y-auto">
+          {(!notifications || notifications.length === 0) ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              <Bell size={20} className="mx-auto mb-2 opacity-40" />
+              No notifications yet
+            </div>
+          ) : (
+            notifications.map((n) => (
+              <Link
+                key={n.id}
+                href={n.link || "/"}
+                onClick={() => setOpen(false)}
+                className="no-underline"
+              >
+                <div
+                  className={`flex items-start gap-2.5 px-3 py-2.5 hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 ${
+                    !n.read ? "bg-primary/5" : ""
+                  }`}
+                  data-testid={`notification-${n.id}`}
+                >
+                  <div className="mt-0.5 shrink-0">{notifIcons[n.type] || <Bell size={13} />}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-foreground leading-relaxed">
+                      <span className="font-semibold">{n.actorName}</span>{" "}
+                      <span className="text-muted-foreground">{n.message}</span>
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{timeAgo(n.createdAt)}</p>
+                  </div>
+                  {!n.read && <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />}
+                </div>
+              </Link>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useTheme();
@@ -91,6 +221,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
             </Button>
+
+            {!isLoading && user && <NotificationBell />}
 
             {!isLoading && (
               <>

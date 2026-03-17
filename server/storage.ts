@@ -7,8 +7,9 @@ import {
   type Subscription, type InsertSubscription,
   type CreatorSubscription, type InsertCreatorSubscription,
   type Review, type InsertReview,
+  type Notification, type InsertNotification,
   users, creators, agents, posts, postLikes, comments, subscriptions,
-  creatorSubscriptions, reviews,
+  creatorSubscriptions, reviews, notifications,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -60,6 +61,12 @@ export interface IStorage {
 
   // Search across all entities
   searchAll(query: string): Promise<{ agents: Agent[]; creators: Creator[]; posts: Post[] }>;
+
+  // Notifications
+  getNotifications(userId: string, limit?: number): Promise<Notification[]>;
+  getUnreadCount(userId: string): Promise<number>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  markNotificationsRead(userId: string, ids?: string[]): Promise<void>;
 
   // User activity
   getUserLikedPosts(userId: string): Promise<Post[]>;
@@ -221,6 +228,30 @@ class PgStorage implements IStorage {
     return { avg: Number(result[0]?.avg || 0), count: Number(result[0]?.count || 0) };
   }
 
+  // Notifications (Pg)
+  async getNotifications(userId: string, limit = 30) {
+    return db!.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt)).limit(limit);
+  }
+  async getUnreadCount(userId: string) {
+    const result = await db!.select({ count: sql<number>`COUNT(*)` }).from(notifications).where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
+    return Number(result[0]?.count || 0);
+  }
+  async createNotification(notification: InsertNotification) {
+    const [n] = await db!.insert(notifications).values(notification).returning();
+    return n;
+  }
+  async markNotificationsRead(userId: string, ids?: string[]) {
+    if (ids && ids.length > 0) {
+      // Mark specific notifications read
+      for (const id of ids) {
+        await db!.update(notifications).set({ read: true }).where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
+      }
+    } else {
+      // Mark all read
+      await db!.update(notifications).set({ read: true }).where(eq(notifications.userId, userId));
+    }
+  }
+
   async searchAll(query: string) {
     const pattern = `%${query}%`;
     const [matchedAgents, matchedCreators, matchedPosts] = await Promise.all([
@@ -269,6 +300,7 @@ class MemStorage implements IStorage {
   private subscriptionsMap: Map<string, Subscription>;
   private creatorSubsMap: Map<string, CreatorSubscription>;
   private reviewsMap: Map<string, Review>;
+  private notificationsMap: Map<string, Notification>;
 
   constructor() {
     this.usersMap = new Map();
@@ -280,6 +312,7 @@ class MemStorage implements IStorage {
     this.subscriptionsMap = new Map();
     this.creatorSubsMap = new Map();
     this.reviewsMap = new Map();
+    this.notificationsMap = new Map();
   }
 
   async seed() {
@@ -448,6 +481,35 @@ class MemStorage implements IStorage {
   }
   async getUserComments(userId: string) {
     return Array.from(this.commentsMap.values()).filter(c => c.userId === userId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  // Notifications (Mem)
+  async getNotifications(userId: string, limit = 30) {
+    return Array.from(this.notificationsMap.values())
+      .filter(n => n.userId === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
+  async getUnreadCount(userId: string) {
+    return Array.from(this.notificationsMap.values()).filter(n => n.userId === userId && !n.read).length;
+  }
+  async createNotification(notification: InsertNotification) {
+    const id = randomUUID();
+    const n: Notification = { ...notification, id, read: false, createdAt: new Date(), link: notification.link ?? null };
+    this.notificationsMap.set(id, n);
+    return n;
+  }
+  async markNotificationsRead(userId: string, ids?: string[]) {
+    if (ids && ids.length > 0) {
+      ids.forEach(id => {
+        const n = this.notificationsMap.get(id);
+        if (n && n.userId === userId) n.read = true;
+      });
+    } else {
+      Array.from(this.notificationsMap.values()).forEach(n => {
+        if (n.userId === userId) n.read = true;
+      });
+    }
   }
 }
 

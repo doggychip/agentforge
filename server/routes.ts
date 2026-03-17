@@ -231,6 +231,17 @@ export async function registerRoutes(
   app.post("/api/creators/:id/subscribe", requireAuth, async (req, res) => {
     const subscribed = await storage.subscribeToCreator(req.session.userId!, req.params.id);
     const creator = await storage.getCreator(req.params.id);
+    // Generate notification for creator on new subscriber
+    if (subscribed && creator?.userId && creator.userId !== req.session.userId) {
+      const user = await storage.getUser(req.session.userId!);
+      storage.createNotification({
+        userId: creator.userId,
+        type: "subscribe",
+        actorName: user?.displayName || "Someone",
+        message: `subscribed to your profile`,
+        link: `/creators/${creator.id}`,
+      }).catch(() => {});
+    }
     res.json({ subscribed, subscribers: creator?.subscribers ?? 0 });
   });
 
@@ -266,6 +277,20 @@ export async function registerRoutes(
       rating: req.body.rating,
       body: req.body.body,
     });
+    // Notify the agent's creator about the review
+    const agent = await storage.getAgent(req.params.id);
+    if (agent) {
+      const creator = await storage.getCreator(agent.creatorId);
+      if (creator?.userId && creator.userId !== req.session.userId) {
+        storage.createNotification({
+          userId: creator.userId,
+          type: "comment",
+          actorName: user.displayName,
+          message: `reviewed your agent "${agent.name}" (${req.body.rating}★)`,
+          link: `/agents/${agent.id}`,
+        }).catch(() => {});
+      }
+    }
     res.status(201).json(review);
   });
 
@@ -343,6 +368,20 @@ export async function registerRoutes(
   app.post("/api/posts/:id/like", requireAuth, async (req, res) => {
     const liked = await storage.likePost(req.params.id, req.session.userId!);
     const post = await storage.getPost(req.params.id);
+    // Generate notification for the post creator on like
+    if (liked && post) {
+      const user = await storage.getUser(req.session.userId!);
+      const creator = await storage.getCreator(post.creatorId);
+      if (creator?.userId && creator.userId !== req.session.userId) {
+        storage.createNotification({
+          userId: creator.userId,
+          type: "like",
+          actorName: user?.displayName || "Someone",
+          message: `liked your post "${post.title}"`,
+          link: `/posts/${post.id}`,
+        }).catch(() => {}); // fire and forget
+      }
+    }
     res.json({ liked, likes: post?.likes ?? 0 });
   });
 
@@ -360,7 +399,40 @@ export async function registerRoutes(
       authorName: user.displayName,
       body: req.body.body,
     });
+    // Generate notification for the post creator on comment
+    const post = await storage.getPost(req.params.id);
+    if (post) {
+      const creator = await storage.getCreator(post.creatorId);
+      if (creator?.userId && creator.userId !== req.session.userId) {
+        storage.createNotification({
+          userId: creator.userId,
+          type: "comment",
+          actorName: user.displayName,
+          message: `commented on your post "${post.title}"`,
+          link: `/posts/${post.id}`,
+        }).catch(() => {});
+      }
+    }
     res.status(201).json(comment);
+  });
+
+  // ─── Notifications ─────────────────────────────────────────
+
+  app.get("/api/notifications", requireAuth, async (req, res) => {
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 30;
+    const notifications = await storage.getNotifications(req.session.userId!, limit);
+    res.json(notifications);
+  });
+
+  app.get("/api/notifications/unread-count", requireAuth, async (req, res) => {
+    const count = await storage.getUnreadCount(req.session.userId!);
+    res.json({ count });
+  });
+
+  app.post("/api/notifications/mark-read", requireAuth, async (req, res) => {
+    const { ids } = req.body; // optional array of notification ids
+    await storage.markNotificationsRead(req.session.userId!, ids);
+    res.json({ success: true });
   });
 
   // ─── Stats ──────────────────────────────────────────────────

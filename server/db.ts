@@ -135,6 +135,17 @@ export async function migrateIfNeeded() {
         "body" text NOT NULL,
         "created_at" timestamp NOT NULL DEFAULT now()
       );
+
+      CREATE TABLE IF NOT EXISTS "notifications" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" varchar NOT NULL,
+        "type" text NOT NULL,
+        "actor_name" text NOT NULL,
+        "message" text NOT NULL,
+        "link" text,
+        "read" boolean NOT NULL DEFAULT false,
+        "created_at" timestamp NOT NULL DEFAULT now()
+      );
     `);
 
     console.log("[db] Migration complete — all tables created");

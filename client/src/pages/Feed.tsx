@@ -2,10 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import type { Post, Creator } from "@shared/schema";
-import { Heart, MessageCircle, Clock, Bookmark, TrendingUp, PenSquare } from "lucide-react";
+import { Heart, MessageCircle, Clock, Bookmark, TrendingUp, PenSquare, Tag, X as XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useState, useMemo } from "react";
 
 function timeAgo(date: string | Date) {
   const now = new Date();
@@ -18,7 +19,7 @@ function timeAgo(date: string | Date) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function PostCard({ post, creators }: { post: Post; creators: Map<string, Creator> }) {
+function PostCard({ post, creators, onTagClick }: { post: Post; creators: Map<string, Creator>; onTagClick?: (tag: string) => void }) {
   const creator = creators.get(post.creatorId);
 
   return (
@@ -67,7 +68,15 @@ function PostCard({ post, creators }: { post: Post; creators: Map<string, Creato
         {/* Tags */}
         <div className="flex flex-wrap gap-1.5 mb-3">
           {post.tags.slice(0, 4).map((tag) => (
-            <span key={tag} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+            <span
+              key={tag}
+              className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onTagClick?.(tag);
+              }}
+            >
               {tag}
             </span>
           ))}
@@ -96,6 +105,8 @@ function PostCard({ post, creators }: { post: Post; creators: Map<string, Creato
 }
 
 export default function Feed() {
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+
   const { data: posts, isLoading: postsLoading } = useQuery<Post[]>({
     queryKey: ["/api/posts"],
   });
@@ -105,13 +116,30 @@ export default function Feed() {
   });
 
   const creatorsMap = new Map((creators ?? []).map((c) => [c.id, c]));
-  const featuredPosts = (posts ?? []).filter((p) => p.featured);
-  const recentPosts = posts ?? [];
+
+  // Extract popular tags from posts (sorted by frequency)
+  const popularTags = useMemo(() => {
+    if (!posts) return [];
+    const tagCount = new Map<string, number>();
+    posts.forEach((p) => p.tags.forEach((t) => tagCount.set(t, (tagCount.get(t) || 0) + 1)));
+    return Array.from(tagCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([tag]) => tag);
+  }, [posts]);
+
+  // Filter posts by tag
+  const filteredPosts = useMemo(() => {
+    if (!activeTag) return posts ?? [];
+    return (posts ?? []).filter((p) => p.tags.includes(activeTag));
+  }, [posts, activeTag]);
+
+  const featuredPosts = filteredPosts.filter((p) => p.featured);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight mb-1" data-testid="text-feed-title">Feed</h1>
           <p className="text-sm text-muted-foreground">
@@ -126,8 +154,46 @@ export default function Feed() {
         </Link>
       </div>
 
+      {/* Tag filter bar */}
+      <div className="flex items-center gap-1.5 flex-wrap mb-6" data-testid="filter-tags">
+        <Tag size={13} className="text-muted-foreground shrink-0" />
+        <Button
+          variant={!activeTag ? "default" : "outline"}
+          size="sm"
+          className="h-6 text-[11px] px-2.5"
+          onClick={() => setActiveTag(null)}
+          data-testid="button-tag-all"
+        >
+          All
+        </Button>
+        {popularTags.map((tag) => (
+          <Button
+            key={tag}
+            variant={activeTag === tag ? "default" : "outline"}
+            size="sm"
+            className="h-6 text-[11px] px-2.5"
+            onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+            data-testid={`button-tag-${tag}`}
+          >
+            {tag}
+          </Button>
+        ))}
+        {activeTag && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-[11px] text-muted-foreground hover:text-foreground gap-1 px-2"
+            onClick={() => setActiveTag(null)}
+            data-testid="button-clear-tag"
+          >
+            <XIcon size={11} />
+            Clear
+          </Button>
+        )}
+      </div>
+
       {/* Featured */}
-      {featuredPosts.length > 0 && (
+      {featuredPosts.length > 0 && !activeTag && (
         <div className="mb-8">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
             <TrendingUp size={13} />
@@ -135,7 +201,7 @@ export default function Feed() {
           </h2>
           <div className="space-y-3">
             {featuredPosts.slice(0, 3).map((post) => (
-              <PostCard key={post.id} post={post} creators={creatorsMap} />
+              <PostCard key={post.id} post={post} creators={creatorsMap} onTagClick={setActiveTag} />
             ))}
           </div>
         </div>
@@ -144,7 +210,7 @@ export default function Feed() {
       {/* All posts */}
       <div>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-          Recent
+          {activeTag ? `Tagged: ${activeTag}` : "Recent"}
         </h2>
         {postsLoading ? (
           <div className="space-y-3">
@@ -164,9 +230,21 @@ export default function Feed() {
           </div>
         ) : (
           <div className="space-y-3">
-            {recentPosts.map((post) => (
-              <PostCard key={post.id} post={post} creators={creatorsMap} />
-            ))}
+            {filteredPosts.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Tag size={24} className="mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No posts found{activeTag ? ` tagged "${activeTag}"` : ""}</p>
+                {activeTag && (
+                  <Button variant="outline" size="sm" className="mt-3 text-xs" onClick={() => setActiveTag(null)}>
+                    Show all posts
+                  </Button>
+                )}
+              </div>
+            ) : (
+              filteredPosts.map((post) => (
+                <PostCard key={post.id} post={post} creators={creatorsMap} onTagClick={setActiveTag} />
+              ))
+            )}
           </div>
         )}
       </div>

@@ -5,9 +5,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Star, Download, Bot, Wrench, FileText, Globe, Filter
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Star, Download, Bot, Wrench, FileText, Globe, ArrowUpDown, SlidersHorizontal, X as XIcon
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 const categoryIcons: Record<string, React.ReactNode> = {
   agent: <Bot size={14} />,
@@ -35,9 +42,19 @@ function formatNumber(n: number) {
 }
 
 const categories = ["all", "agent", "tool", "content", "api"];
+const pricingOptions = ["all", "free", "subscription", "usage"];
+const sortOptions = [
+  { value: "popular", label: "Most Popular" },
+  { value: "stars", label: "Top Rated" },
+  { value: "downloads", label: "Most Downloads" },
+  { value: "name", label: "Name A-Z" },
+];
 
 export default function Agents() {
   const [activeCategory, setActiveCategory] = useState("all");
+  const [activePricing, setActivePricing] = useState("all");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState("popular");
 
   const { data: agents, isLoading } = useQuery<Agent[]>({
     queryKey: ["/api/agents"],
@@ -49,9 +66,53 @@ export default function Agents() {
 
   const creatorsMap = new Map(creators?.map((c) => [c.id, c]) || []);
 
-  const filtered = activeCategory === "all"
-    ? agents
-    : agents?.filter((a) => a.category === activeCategory);
+  // Extract all unique tags from agents
+  const allTags = useMemo(() => {
+    if (!agents) return [];
+    const tagSet = new Set<string>();
+    agents.forEach((a) => a.tags.forEach((t) => tagSet.add(t)));
+    return Array.from(tagSet).sort();
+  }, [agents]);
+
+  // Filter and sort
+  const filtered = useMemo(() => {
+    let result = agents ?? [];
+
+    // Category filter
+    if (activeCategory !== "all") {
+      result = result.filter((a) => a.category === activeCategory);
+    }
+
+    // Pricing filter
+    if (activePricing !== "all") {
+      result = result.filter((a) => a.pricing === activePricing);
+    }
+
+    // Tag filter
+    if (activeTag) {
+      result = result.filter((a) => a.tags.includes(activeTag));
+    }
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      switch (sortBy) {
+        case "stars": return b.stars - a.stars;
+        case "downloads": return b.downloads - a.downloads;
+        case "name": return a.name.localeCompare(b.name);
+        default: return (b.stars + b.downloads) - (a.stars + a.downloads);
+      }
+    });
+
+    return result;
+  }, [agents, activeCategory, activePricing, activeTag, sortBy]);
+
+  const activeFilterCount = (activeCategory !== "all" ? 1 : 0) + (activePricing !== "all" ? 1 : 0) + (activeTag ? 1 : 0);
+
+  function clearFilters() {
+    setActiveCategory("all");
+    setActivePricing("all");
+    setActiveTag(null);
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -62,23 +123,96 @@ export default function Agents() {
             Browse all AI agents, developer tools, content, and APIs
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="h-8 w-[160px] text-xs" data-testid="select-sort">
+              <ArrowUpDown size={13} className="mr-1.5 shrink-0" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {sortOptions.map((o) => (
+                <SelectItem key={o.value} value={o.value} className="text-xs">
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Category Filter */}
-      <div className="flex items-center gap-1.5 mb-6 flex-wrap" data-testid="filter-categories">
-        {categories.map((cat) => (
-          <Button
-            key={cat}
-            variant={activeCategory === cat ? "default" : "outline"}
-            size="sm"
-            className="h-7 text-xs capitalize"
-            onClick={() => setActiveCategory(cat)}
-            data-testid={`button-category-${cat}`}
-          >
-            {cat}
-          </Button>
-        ))}
+      {/* Filter Toolbar */}
+      <div className="flex flex-col gap-3 mb-6">
+        {/* Category buttons */}
+        <div className="flex items-center gap-1.5 flex-wrap" data-testid="filter-categories">
+          {categories.map((cat) => (
+            <Button
+              key={cat}
+              variant={activeCategory === cat ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs capitalize"
+              onClick={() => setActiveCategory(cat)}
+              data-testid={`button-category-${cat}`}
+            >
+              {cat}
+            </Button>
+          ))}
+        </div>
+
+        {/* Pricing + Tag row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1">
+            <SlidersHorizontal size={13} className="text-muted-foreground" />
+            <span className="text-xs text-muted-foreground font-medium">Pricing:</span>
+          </div>
+          {pricingOptions.map((p) => (
+            <Button
+              key={p}
+              variant={activePricing === p ? "default" : "outline"}
+              size="sm"
+              className="h-6 text-[11px] capitalize px-2.5"
+              onClick={() => setActivePricing(p)}
+              data-testid={`button-pricing-${p}`}
+            >
+              {p === "all" ? "Any" : p}
+            </Button>
+          ))}
+
+          {/* Tag select */}
+          <div className="ml-2">
+            <Select value={activeTag || "__none__"} onValueChange={(v) => setActiveTag(v === "__none__" ? null : v)}>
+              <SelectTrigger className="h-6 w-[140px] text-[11px]" data-testid="select-tag">
+                <SelectValue placeholder="Filter by tag..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__" className="text-[11px]">All tags</SelectItem>
+                {allTags.map((tag) => (
+                  <SelectItem key={tag} value={tag} className="text-[11px]">
+                    {tag}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {activeFilterCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-[11px] text-muted-foreground hover:text-foreground gap-1 px-2"
+              onClick={clearFilters}
+              data-testid="button-clear-filters"
+            >
+              <XIcon size={11} />
+              Clear ({activeFilterCount})
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Results count */}
+      <p className="text-xs text-muted-foreground mb-4">
+        {filtered.length} {filtered.length === 1 ? "result" : "results"}
+      </p>
 
       {/* Grid */}
       {isLoading ? (
@@ -89,7 +223,7 @@ export default function Agents() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered?.map((agent) => {
+          {filtered.map((agent) => {
             const creator = creatorsMap.get(agent.creatorId);
             return (
               <Link
@@ -154,10 +288,13 @@ export default function Agents() {
         </div>
       )}
 
-      {filtered?.length === 0 && (
+      {filtered.length === 0 && !isLoading && (
         <div className="text-center py-16 text-muted-foreground">
           <Bot size={32} className="mx-auto mb-3 opacity-40" />
-          <p className="text-sm">No {activeCategory === "all" ? "items" : activeCategory + "s"} found</p>
+          <p className="text-sm">No results match your filters</p>
+          <Button variant="outline" size="sm" className="mt-3 text-xs" onClick={clearFilters}>
+            Clear all filters
+          </Button>
         </div>
       )}
     </div>

@@ -107,6 +107,18 @@ export const reviews = pgTable("reviews", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Notifications
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // recipient
+  type: text("type").notNull(), // "like" | "comment" | "subscribe" | "new_post"
+  actorName: text("actor_name").notNull(), // who triggered the notification
+  message: text("message").notNull(),
+  link: text("link"), // e.g. "/posts/xyz"
+  read: boolean("read").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Auth schemas
 export const registerSchema = z.object({
   username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, hyphens, and underscores"),
@@ -128,6 +140,7 @@ export const insertCommentSchema = createInsertSchema(comments).omit({ id: true,
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true });
 export const insertCreatorSubscriptionSchema = createInsertSchema(creatorSubscriptions).omit({ id: true, createdAt: true });
 export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true });
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, read: true, createdAt: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -145,6 +158,9 @@ export type CreatorSubscription = typeof creatorSubscriptions.$inferSelect;
 export type InsertCreatorSubscription = z.infer<typeof insertCreatorSubscriptionSchema>;
 export type Review = typeof reviews.$inferSelect;
 export type InsertReview = z.infer<typeof insertReviewSchema>;
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 
 // Safe user type (no password)
 export type SafeUser = Omit<User, "password">;
