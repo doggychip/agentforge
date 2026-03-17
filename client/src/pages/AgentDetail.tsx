@@ -92,21 +92,48 @@ export default function AgentDetail() {
     },
   });
 
+  // Check existing subscription status for paid agents
+  const { data: subStatus } = useQuery<{ subscribed: boolean }>({
+    queryKey: ["/api/agents", id, "subscription-status"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/agents/${id}/subscription-status`);
+      return res.json();
+    },
+    enabled: !!user && !!id,
+  });
+
   const subscribeMutation = useMutation({
     mutationFn: async () => {
+      // For paid agents, redirect to Stripe Checkout
+      if (agentData && agentData.pricing !== "free" && agentData.price) {
+        const res = await apiRequest("POST", "/api/stripe/checkout", { agentId: id });
+        const data = await res.json();
+        if (data.url) {
+          window.open(data.url, "_blank");
+          return;
+        }
+        throw new Error(data.message || "Checkout failed");
+      }
+      // For free agents, just create a DB subscription
       await apiRequest("POST", "/api/subscriptions", {
         subscriberId: user?.id || "anonymous",
         subscriberType: "human",
         agentId: id,
-        plan: agentData?.pricing === "free" ? "free" : "pro",
+        plan: "free",
         status: "active",
       });
     },
     onSuccess: () => {
-      toast({ title: "Subscribed", description: `You're now subscribed to ${agentData?.name}` });
+      if (agentData?.pricing === "free" || !agentData?.price) {
+        toast({ title: "Installed", description: `You've installed ${agentData?.name}` });
+      } else {
+        toast({ title: "Checkout opened", description: "Complete payment in the new tab" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/agents", id, "subscription-status"] });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Sign in to subscribe", variant: "destructive" });
+    onError: (err: any) => {
+      const msg = err?.message || "Sign in to subscribe";
+      toast({ title: "Error", description: msg, variant: "destructive" });
     },
   });
 
@@ -229,10 +256,10 @@ export default function AgentDetail() {
             <Button
               className="w-full h-9 text-sm font-medium"
               onClick={() => subscribeMutation.mutate()}
-              disabled={subscribeMutation.isPending}
+              disabled={subscribeMutation.isPending || subStatus?.subscribed}
               data-testid="button-subscribe"
             >
-              {subscribeMutation.isPending ? "..." : subscribeMutation.isSuccess ? (
+              {subscribeMutation.isPending ? "..." : (subStatus?.subscribed || subscribeMutation.isSuccess) ? (
                 <span className="flex items-center gap-1.5"><CheckCircle size={14} /> Subscribed</span>
               ) : agent.pricing === "free" ? "Install" : "Subscribe"}
             </Button>

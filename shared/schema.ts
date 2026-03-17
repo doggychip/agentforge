@@ -11,6 +11,7 @@ export const users = pgTable("users", {
   displayName: text("display_name").notNull(),
   avatar: text("avatar"),
   role: text("role").notNull().default("user"), // "user" | "creator" | "admin"
+  stripeCustomerId: text("stripe_customer_id"), // Stripe customer ID for subscribers
 });
 
 // Creators on the platform
@@ -25,6 +26,8 @@ export const creators = pgTable("creators", {
   agentCount: integer("agent_count").notNull().default(0),
   tags: text("tags").array().notNull(),
   verified: boolean("verified").notNull().default(false),
+  stripeAccountId: text("stripe_account_id"), // Stripe Connect Express account ID
+  stripeOnboarded: boolean("stripe_onboarded").notNull().default(false),
 });
 
 // AI Agents / Tools / Content published by creators
@@ -94,6 +97,9 @@ export const subscriptions = pgTable("subscriptions", {
   agentId: varchar("agent_id").notNull(),
   plan: text("plan").notNull(), // "free" | "pro" | "enterprise"
   status: text("status").notNull().default("active"),
+  stripeSubscriptionId: text("stripe_subscription_id"), // Stripe subscription ID for paid plans
+  stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+  currentPeriodEnd: timestamp("current_period_end"),
 });
 
 // Agent reviews

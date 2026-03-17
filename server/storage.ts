@@ -72,6 +72,13 @@ export interface IStorage {
   getUserLikedPosts(userId: string): Promise<Post[]>;
   getUserComments(userId: string): Promise<Comment[]>;
 
+  // Stripe helpers
+  updateUser(id: string, data: Partial<User>): Promise<User | undefined>;
+  updateCreator(id: string, data: Partial<Creator>): Promise<Creator | undefined>;
+  updateSubscription(id: string, data: Partial<Subscription>): Promise<Subscription | undefined>;
+  getSubscriptionByStripeSessionId(sessionId: string): Promise<Subscription | undefined>;
+  getSubscriptionByStripeSubId(stripeSubId: string): Promise<Subscription | undefined>;
+
   seed(): Promise<void>;
 }
 
@@ -279,6 +286,28 @@ class PgStorage implements IStorage {
     return db!.select().from(comments).where(eq(comments.userId, userId)).orderBy(desc(comments.createdAt));
   }
 
+  // Stripe helpers (Pg)
+  async updateUser(id: string, data: Partial<User>) {
+    const [updated] = await db!.update(users).set(data).where(eq(users.id, id)).returning();
+    return updated;
+  }
+  async updateCreator(id: string, data: Partial<Creator>) {
+    const [updated] = await db!.update(creators).set(data).where(eq(creators.id, id)).returning();
+    return updated;
+  }
+  async updateSubscription(id: string, data: Partial<Subscription>) {
+    const [updated] = await db!.update(subscriptions).set(data).where(eq(subscriptions.id, id)).returning();
+    return updated;
+  }
+  async getSubscriptionByStripeSessionId(sessionId: string) {
+    const [sub] = await db!.select().from(subscriptions).where(eq(subscriptions.stripeCheckoutSessionId, sessionId));
+    return sub;
+  }
+  async getSubscriptionByStripeSubId(stripeSubId: string) {
+    const [sub] = await db!.select().from(subscriptions).where(eq(subscriptions.stripeSubscriptionId, stripeSubId));
+    return sub;
+  }
+
   async seed() {
     const existing = await db!.select().from(creators).limit(1);
     if (existing.length > 0) return;
@@ -330,7 +359,7 @@ class MemStorage implements IStorage {
   }
   async createUser(insertUser: InsertUser) {
     const id = randomUUID();
-    const user: User = { ...insertUser, id, avatar: null, role: "user" };
+    const user: User = { ...insertUser, id, avatar: null, role: "user", stripeCustomerId: null };
     this.usersMap.set(id, user);
     return user;
   }
@@ -345,7 +374,7 @@ class MemStorage implements IStorage {
   }
   async createCreator(insertCreator: InsertCreator) {
     const id = randomUUID();
-    const creator: Creator = { ...insertCreator, id, subscribers: insertCreator.subscribers ?? 0, agentCount: insertCreator.agentCount ?? 0, verified: insertCreator.verified ?? false };
+    const creator: Creator = { ...insertCreator, id, subscribers: insertCreator.subscribers ?? 0, agentCount: insertCreator.agentCount ?? 0, verified: insertCreator.verified ?? false, stripeAccountId: insertCreator.stripeAccountId ?? null, stripeOnboarded: insertCreator.stripeOnboarded ?? false };
     this.creatorsMap.set(id, creator);
     return creator;
   }
@@ -417,7 +446,7 @@ class MemStorage implements IStorage {
   }
   async createSubscription(sub: InsertSubscription) {
     const id = randomUUID();
-    const subscription: Subscription = { ...sub, id };
+    const subscription: Subscription = { ...sub, id, stripeSubscriptionId: sub.stripeSubscriptionId ?? null, stripeCheckoutSessionId: sub.stripeCheckoutSessionId ?? null, currentPeriodEnd: sub.currentPeriodEnd ?? null };
     this.subscriptionsMap.set(id, subscription);
     return subscription;
   }
@@ -510,6 +539,32 @@ class MemStorage implements IStorage {
         if (n.userId === userId) n.read = true;
       });
     }
+  }
+
+  // Stripe helpers (Mem)
+  async updateUser(id: string, data: Partial<User>) {
+    const user = this.usersMap.get(id);
+    if (!user) return undefined;
+    Object.assign(user, data);
+    return user;
+  }
+  async updateCreator(id: string, data: Partial<Creator>) {
+    const creator = this.creatorsMap.get(id);
+    if (!creator) return undefined;
+    Object.assign(creator, data);
+    return creator;
+  }
+  async updateSubscription(id: string, data: Partial<Subscription>) {
+    const sub = this.subscriptionsMap.get(id);
+    if (!sub) return undefined;
+    Object.assign(sub, data);
+    return sub;
+  }
+  async getSubscriptionByStripeSessionId(sessionId: string) {
+    return Array.from(this.subscriptionsMap.values()).find(s => s.stripeCheckoutSessionId === sessionId);
+  }
+  async getSubscriptionByStripeSubId(stripeSubId: string) {
+    return Array.from(this.subscriptionsMap.values()).find(s => s.stripeSubscriptionId === stripeSubId);
   }
 }
 

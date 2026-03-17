@@ -46,7 +46,8 @@ export async function migrateIfNeeded() {
         "password" text NOT NULL,
         "display_name" text NOT NULL,
         "avatar" text,
-        "role" text NOT NULL DEFAULT 'user'
+        "role" text NOT NULL DEFAULT 'user',
+        "stripe_customer_id" text
       );
 
       CREATE TABLE IF NOT EXISTS "creators" (
@@ -59,7 +60,9 @@ export async function migrateIfNeeded() {
         "subscribers" integer NOT NULL DEFAULT 0,
         "agent_count" integer NOT NULL DEFAULT 0,
         "tags" text[] NOT NULL,
-        "verified" boolean NOT NULL DEFAULT false
+        "verified" boolean NOT NULL DEFAULT false,
+        "stripe_account_id" text,
+        "stripe_onboarded" boolean NOT NULL DEFAULT false
       );
 
       CREATE TABLE IF NOT EXISTS "agents" (
@@ -115,7 +118,10 @@ export async function migrateIfNeeded() {
         "subscriber_type" text NOT NULL,
         "agent_id" varchar NOT NULL,
         "plan" text NOT NULL,
-        "status" text NOT NULL DEFAULT 'active'
+        "status" text NOT NULL DEFAULT 'active',
+        "stripe_subscription_id" text,
+        "stripe_checkout_session_id" text,
+        "current_period_end" timestamp
       );
 
       CREATE TABLE IF NOT EXISTS "creator_subscriptions" (

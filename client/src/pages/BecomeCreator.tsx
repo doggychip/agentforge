@@ -32,8 +32,8 @@ export default function BecomeCreator() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/creators/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/creators"] });
-      toast({ title: "Creator profile created" });
-      navigate("/new-post");
+      toast({ title: "Creator profile created", description: "Connect Stripe to start earning" });
+      navigate("/profile");
     },
     onError: (err: any) => {
       toast({
@@ -82,6 +82,7 @@ export default function BecomeCreator() {
         <h1 className="text-xl font-semibold mb-1">Become a creator</h1>
         <p className="text-sm text-muted-foreground">
           Set up your creator profile to publish posts, share agents, and grow your audience.
+          After creating your profile, connect Stripe to start accepting payments.
         </p>
       </div>
 

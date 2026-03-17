@@ -1,9 +1,20 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
+import Stripe from "stripe";
 import { storage } from "./storage";
 import { registerSchema, loginSchema, type SafeUser } from "@shared/schema";
 import bcrypt from "bcryptjs";
+
+// Stripe setup — set STRIPE_SECRET_KEY in environment
+const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || "";
+const stripe = STRIPE_KEY ? new Stripe(STRIPE_KEY, { apiVersion: "2026-02-25.clover" }) : null;
+const PLATFORM_FEE_PERCENT = 10; // 10% platform fee
+
+function requireStripe(_req: any, res: any, next: any) {
+  if (!stripe) return res.status(503).json({ message: "Stripe not configured. Set STRIPE_SECRET_KEY env var." });
+  next();
+}
 
 // Extend express-session
 declare module "express-session" {
@@ -446,6 +457,277 @@ export async function registerRoutes(
       totalDownloads: agents.reduce((sum, a) => sum + a.downloads, 0),
       totalSubscribers: creators.reduce((sum, c) => sum + c.subscribers, 0),
     });
+  });
+
+  // ─── Stripe Connect: Creator Onboarding ─────────────────────
+
+  // Create Stripe Express account for a creator and return onboarding link
+  app.post("/api/stripe/connect/onboard", requireStripe, requireAuth, async (req, res) => {
+    try {
+      const creator = await storage.getCreatorByUserId(req.session.userId!);
+      if (!creator) {
+        return res.status(403).json({ message: "You need a creator profile first" });
+      }
+
+      let accountId = creator.stripeAccountId;
+
+      // Create Express account if not already created
+      if (!accountId) {
+        const account = await stripe!.accounts.create({
+          type: "express",
+          email: (await storage.getUser(req.session.userId!))?.email,
+          metadata: { creatorId: creator.id, userId: req.session.userId! },
+          capabilities: {
+            card_payments: { requested: true },
+            transfers: { requested: true },
+          },
+        });
+        accountId = account.id;
+        await storage.updateCreator(creator.id, { stripeAccountId: accountId });
+      }
+
+      // Generate onboarding link
+      const origin = req.headers.origin || req.headers.referer?.replace(/\/$/, "") || "http://localhost:5000";
+      const accountLink = await stripe!.accountLinks.create({
+        account: accountId,
+        refresh_url: `${origin}/#/profile?stripe=refresh`,
+        return_url: `${origin}/#/profile?stripe=success`,
+        type: "account_onboarding",
+      });
+
+      res.json({ url: accountLink.url, accountId });
+    } catch (error: any) {
+      console.error("Stripe Connect onboard error:", error);
+      res.status(500).json({ message: error.message || "Stripe onboarding failed" });
+    }
+  });
+
+  // Check Stripe Connect account status
+  app.get("/api/stripe/connect/status", requireStripe, requireAuth, async (req, res) => {
+    try {
+      const creator = await storage.getCreatorByUserId(req.session.userId!);
+      if (!creator || !creator.stripeAccountId) {
+        return res.json({ connected: false, onboarded: false });
+      }
+
+      const account = await stripe!.accounts.retrieve(creator.stripeAccountId);
+      const onboarded = account.charges_enabled && account.payouts_enabled;
+
+      // Update onboarded status in DB
+      if (onboarded && !creator.stripeOnboarded) {
+        await storage.updateCreator(creator.id, { stripeOnboarded: true });
+      }
+
+      res.json({
+        connected: true,
+        onboarded,
+        chargesEnabled: account.charges_enabled,
+        payoutsEnabled: account.payouts_enabled,
+        accountId: creator.stripeAccountId,
+      });
+    } catch (error: any) {
+      console.error("Stripe Connect status error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Creator earnings dashboard
+  app.get("/api/stripe/connect/earnings", requireStripe, requireAuth, async (req, res) => {
+    try {
+      const creator = await storage.getCreatorByUserId(req.session.userId!);
+      if (!creator || !creator.stripeAccountId) {
+        return res.json({ balance: { available: 0, pending: 0 }, recentPayouts: [], currency: "usd" });
+      }
+
+      const balance = await stripe!.balance.retrieve({
+        stripeAccount: creator.stripeAccountId,
+      });
+
+      const available = balance.available.reduce((sum, b) => sum + b.amount, 0);
+      const pending = balance.pending.reduce((sum, b) => sum + b.amount, 0);
+      const currency = balance.available[0]?.currency || "usd";
+
+      // Get recent payouts
+      let recentPayouts: any[] = [];
+      try {
+        const payouts = await stripe!.payouts.list(
+          { limit: 5 },
+          { stripeAccount: creator.stripeAccountId }
+        );
+        recentPayouts = payouts.data.map(p => ({
+          id: p.id,
+          amount: p.amount,
+          currency: p.currency,
+          status: p.status,
+          arrival: p.arrival_date,
+        }));
+      } catch {
+        // No payouts yet, that's fine
+      }
+
+      res.json({ balance: { available, pending }, recentPayouts, currency });
+    } catch (error: any) {
+      console.error("Stripe earnings error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ─── Stripe Checkout: Subscribe to paid agent ───────────────
+
+  app.post("/api/stripe/checkout", requireStripe, requireAuth, async (req, res) => {
+    try {
+      const { agentId } = req.body;
+      const agent = await storage.getAgent(agentId);
+      if (!agent) return res.status(404).json({ message: "Agent not found" });
+      if (agent.pricing === "free" || !agent.price) {
+        return res.status(400).json({ message: "This agent is free — no payment required" });
+      }
+
+      const creator = await storage.getCreator(agent.creatorId);
+      if (!creator?.stripeAccountId || !creator.stripeOnboarded) {
+        return res.status(400).json({ message: "Creator hasn't connected payments yet" });
+      }
+
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ message: "Not authenticated" });
+
+      // Get or create Stripe customer
+      let customerId = user.stripeCustomerId;
+      if (!customerId) {
+        const customer = await stripe!.customers.create({
+          email: user.email,
+          metadata: { userId: user.id },
+        });
+        customerId = customer.id;
+        await storage.updateUser(user.id, { stripeCustomerId: customerId });
+      }
+
+      // Create a subscription record first (pending)
+      const sub = await storage.createSubscription({
+        subscriberId: user.id,
+        subscriberType: "human",
+        agentId: agent.id,
+        plan: "pro",
+        status: "pending",
+      });
+
+      const origin = req.headers.origin || req.headers.referer?.replace(/\/$/, "") || "http://localhost:5000";
+
+      // Calculate application fee (10%)
+      const applicationFeeAmount = Math.round(agent.price * PLATFORM_FEE_PERCENT / 100);
+
+      const session = await stripe!.checkout.sessions.create({
+        mode: "subscription",
+        customer: customerId,
+        line_items: [{
+          price_data: {
+            currency: agent.currency || "usd",
+            product_data: {
+              name: agent.name,
+              description: `Subscribe to ${agent.name} by ${creator.name}`,
+            },
+            unit_amount: agent.price,
+            recurring: { interval: "month" },
+          },
+          quantity: 1,
+        }],
+        subscription_data: {
+          application_fee_percent: PLATFORM_FEE_PERCENT,
+          metadata: { subscriptionId: sub.id, agentId: agent.id, creatorId: creator.id },
+        },
+        metadata: { subscriptionId: sub.id, agentId: agent.id },
+        success_url: `${origin}/#/agents/${agent.id}?checkout=success`,
+        cancel_url: `${origin}/#/agents/${agent.id}?checkout=cancel`,
+      }, {
+        stripeAccount: creator.stripeAccountId,
+      });
+
+      // Store checkout session ID
+      await storage.updateSubscription(sub.id, { stripeCheckoutSessionId: session.id });
+
+      res.json({ url: session.url, sessionId: session.id });
+    } catch (error: any) {
+      console.error("Stripe checkout error:", error);
+      res.status(500).json({ message: error.message || "Checkout failed" });
+    }
+  });
+
+  // ─── Stripe Webhooks ────────────────────────────────────────
+
+  // Stripe webhook — uses rawBody saved by the global express.json() verify callback
+  app.post("/api/stripe/webhook", async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    let event: Stripe.Event;
+
+    try {
+      if (webhookSecret && sig && (req as any).rawBody) {
+        event = stripe!.webhooks.constructEvent((req as any).rawBody, sig, webhookSecret);
+      } else {
+        // In test mode without webhook secret, just use the parsed body
+        event = req.body as Stripe.Event;
+      }
+    } catch (err: any) {
+      console.error("Webhook signature verification failed:", err.message);
+      return res.status(400).json({ message: `Webhook Error: ${err.message}` });
+    }
+
+    console.log(`[stripe] Webhook received: ${event.type}`);
+
+    try {
+      switch (event.type) {
+        case "checkout.session.completed": {
+          const session = event.data.object as Stripe.Checkout.Session;
+          const subscriptionId = session.metadata?.subscriptionId;
+          if (subscriptionId) {
+            await storage.updateSubscription(subscriptionId, {
+              status: "active",
+              stripeCheckoutSessionId: session.id,
+              stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id || null,
+            });
+            console.log(`[stripe] Subscription ${subscriptionId} activated`);
+          }
+          break;
+        }
+
+        case "customer.subscription.updated": {
+          const sub = event.data.object as Stripe.Subscription;
+          const dbSub = await storage.getSubscriptionByStripeSubId(sub.id);
+          if (dbSub) {
+            await storage.updateSubscription(dbSub.id, {
+              status: sub.status === "active" ? "active" : "cancelled",
+              currentPeriodEnd: new Date(sub.current_period_end * 1000),
+            });
+          }
+          break;
+        }
+
+        case "customer.subscription.deleted": {
+          const sub = event.data.object as Stripe.Subscription;
+          const dbSub = await storage.getSubscriptionByStripeSubId(sub.id);
+          if (dbSub) {
+            await storage.updateSubscription(dbSub.id, { status: "cancelled" });
+          }
+          break;
+        }
+
+        default:
+          console.log(`[stripe] Unhandled event type: ${event.type}`);
+      }
+    } catch (error) {
+      console.error("Webhook handler error:", error);
+    }
+
+    res.json({ received: true });
+  });
+
+  // ─── Stripe: Check if user has active subscription for agent ─
+
+  app.get("/api/agents/:id/subscription-status", requireAuth, async (req, res) => {
+    const subs = await storage.getSubscriptions(req.session.userId!);
+    const activeSub = subs.find(s => s.agentId === req.params.id && s.status === "active");
+    res.json({ subscribed: !!activeSub, subscription: activeSub || null });
   });
 
   return httpServer;

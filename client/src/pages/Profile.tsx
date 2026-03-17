@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Creator, Post, Comment } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   User as UserIcon, Heart, MessageSquare, Users, Bot,
   Shield, ArrowRight, PenSquare, Clock, ExternalLink,
+  CreditCard, DollarSign, Loader2, CheckCircle, AlertCircle,
+  Banknote,
 } from "lucide-react";
 
 function formatNumber(n: number) {
@@ -72,6 +74,47 @@ export default function Profile() {
       }
     },
     enabled: !!user,
+  });
+
+  // Stripe Connect status
+  const { data: stripeStatus } = useQuery<{
+    connected: boolean; onboarded: boolean;
+    chargesEnabled?: boolean; payoutsEnabled?: boolean;
+  }>({
+    queryKey: ["/api/stripe/connect/status"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/stripe/connect/status");
+      return res.json();
+    },
+    enabled: !!user && !!creatorProfile,
+  });
+
+  // Stripe earnings
+  const { data: earnings } = useQuery<{
+    balance: { available: number; pending: number };
+    recentPayouts: any[];
+    currency: string;
+  }>({
+    queryKey: ["/api/stripe/connect/earnings"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/stripe/connect/earnings");
+      return res.json();
+    },
+    enabled: !!user && !!creatorProfile && !!stripeStatus?.onboarded,
+  });
+
+  const connectStripeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/stripe/connect/onboard");
+      const data = await res.json();
+      if (data.url) {
+        window.open(data.url, "_blank");
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/stripe/connect/status"] });
+    },
   });
 
   if (authLoading) {
@@ -142,6 +185,109 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      {/* Stripe Connect Section for Creators */}
+      {creatorProfile && (
+        <div className="rounded-lg border border-border bg-card p-5 mb-6" data-testid="section-stripe-connect">
+          <div className="flex items-center gap-2 mb-3">
+            <CreditCard size={16} className="text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">Payments & Earnings</h2>
+          </div>
+
+          {!stripeStatus?.connected ? (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Connect Stripe to receive payments from subscribers. 10% platform fee on all transactions.
+              </p>
+              <Button
+                size="sm"
+                className="text-xs gap-1.5 h-8"
+                onClick={() => connectStripeMutation.mutate()}
+                disabled={connectStripeMutation.isPending}
+                data-testid="button-connect-stripe"
+              >
+                {connectStripeMutation.isPending ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <CreditCard size={13} />
+                )}
+                Connect Stripe
+              </Button>
+            </div>
+          ) : !stripeStatus.onboarded ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={14} className="text-yellow-500" />
+                <p className="text-xs text-muted-foreground">Stripe connected but onboarding incomplete.</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs gap-1.5 h-8"
+                onClick={() => connectStripeMutation.mutate()}
+                disabled={connectStripeMutation.isPending}
+                data-testid="button-complete-stripe"
+              >
+                {connectStripeMutation.isPending ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <CreditCard size={13} />
+                )}
+                Complete Onboarding
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+                <CheckCircle size={13} />
+                <span className="font-medium">Stripe connected — ready to receive payments</span>
+              </div>
+
+              {/* Earnings Grid */}
+              {earnings && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-md border border-border p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Available</p>
+                    <p className="text-lg font-bold text-foreground">
+                      ${((earnings.balance.available || 0) / 100).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Pending</p>
+                    <p className="text-lg font-bold text-foreground">
+                      ${((earnings.balance.pending || 0) / 100).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Payouts */}
+              {earnings?.recentPayouts && earnings.recentPayouts.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-medium text-muted-foreground mb-2">Recent Payouts</h3>
+                  <div className="space-y-1.5">
+                    {earnings.recentPayouts.map((payout: any) => (
+                      <div key={payout.id} className="flex items-center justify-between text-xs py-1.5 px-2 rounded bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          <Banknote size={12} className="text-muted-foreground" />
+                          <span className="text-foreground font-medium">${(payout.amount / 100).toFixed(2)}</span>
+                        </div>
+                        <Badge variant={payout.status === "paid" ? "secondary" : "outline"} className="text-[10px]">
+                          {payout.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[10px] text-muted-foreground">
+                Platform fee: 10% on all subscriber payments. Payouts via Stripe Express.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Content Tabs */}
       <Tabs defaultValue="subscriptions" className="space-y-4">
