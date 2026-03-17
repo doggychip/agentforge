@@ -673,6 +673,9 @@ export async function registerRoutes(
       // Calculate application fee (10%)
       const applicationFeeAmount = Math.round(agent.price * PLATFORM_FEE_PERCENT / 100);
 
+      // Create Checkout on the PLATFORM account with application_fee_percent
+      // and transfer_data to send the creator's share to their connected account.
+      // This avoids the "customer not found on connected account" error.
       const session = await stripe!.checkout.sessions.create({
         mode: "subscription",
         customer: customerId,
@@ -690,13 +693,14 @@ export async function registerRoutes(
         }],
         subscription_data: {
           application_fee_percent: PLATFORM_FEE_PERCENT,
+          transfer_data: {
+            destination: creator.stripeAccountId!,
+          },
           metadata: { subscriptionId: sub.id, agentId: agent.id, creatorId: creator.id },
         },
         metadata: { subscriptionId: sub.id, agentId: agent.id },
         success_url: `${origin}/#/agents/${agent.id}?checkout=success`,
         cancel_url: `${origin}/#/agents/${agent.id}?checkout=cancel`,
-      }, {
-        stripeAccount: creator.stripeAccountId,
       });
 
       // Store checkout session ID
