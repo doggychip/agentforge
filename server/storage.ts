@@ -1025,6 +1025,119 @@ const SEED_CREATORS = [
     subscribers: 290, agentCount: 1,
     tags: ["korea", "korean-nlp", "open-source", "agents"], verified: false,
   },
+  // --- Batch 2: Curated open-source projects ---
+  {
+    id: "c35", name: "HKUDS Lab", handle: "hkuds",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=hkuds",
+    bio: "Data Intelligence Lab @ HKU. Building AutoAgent, LightRAG, AI-Trader, and more. Pushing the frontier of agentic AI research from Hong Kong.",
+    subscribers: 11800, agentCount: 3,
+    tags: ["hong-kong", "research", "trading", "rag", "hku"], verified: false,
+  },
+  {
+    id: "c36", name: "Fugle 富果投資", handle: "fugledev",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=fugle",
+    bio: "台灣領先投資平台. Taiwan's leading API-first investment platform. MCP server for AI-powered Taiwan stock market trading & data.",
+    subscribers: 2400, agentCount: 2,
+    tags: ["taiwan", "stock-market", "mcp", "fintech", "trading"], verified: false,
+  },
+  {
+    id: "c37", name: "Alibaba NLP", handle: "alibabanlp",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=alibabanlp",
+    bio: "通義實驗室 Tongyi Lab. Building Tongyi DeepResearch — the leading open-source deep research agent. 30B MoE model for deep information-seeking.",
+    subscribers: 8500, agentCount: 1,
+    tags: ["china", "research", "deep-research", "alibaba", "nlp"], verified: false,
+  },
+  {
+    id: "c38", name: "OpenBMB", handle: "openbmb",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=openbmb",
+    bio: "清華大學 Open Lab. ChatDev virtual software company, IoA (Internet of Agents), and more. Multi-agent collaboration research from Tsinghua.",
+    subscribers: 4200, agentCount: 2,
+    tags: ["china", "tsinghua", "multi-agent", "research", "chatdev"], verified: false,
+  },
+  {
+    id: "c39", name: "DeFi Trading MCP", handle: "defitrading",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=defitrading",
+    bio: "Transform your AI assistant into an autonomous crypto trading agent. Real-time market analysis, portfolio management & trade execution across 17+ blockchains.",
+    subscribers: 1800, agentCount: 1,
+    tags: ["defi", "crypto", "mcp", "trading", "blockchain"], verified: false,
+  },
+  {
+    id: "c40", name: "OKX", handle: "okx",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=okx",
+    bio: "OKX official MCP server. Connect AI agents to spot, swap, futures, options & grid bots via the Model Context Protocol. 全球領先加密貨幣交易所.",
+    subscribers: 5600, agentCount: 1,
+    tags: ["crypto", "exchange", "mcp", "trading", "okx"], verified: false,
+  },
+  {
+    id: "c41", name: "Alpaca Markets", handle: "alpacahq",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=alpaca",
+    bio: "Official Alpaca MCP Server. Trade stocks, ETFs, crypto & options in plain English from your AI assistant. Commission-free API-first brokerage.",
+    subscribers: 4300, agentCount: 1,
+    tags: ["stocks", "trading", "mcp", "etf", "brokerage"], verified: false,
+  },
+  {
+    id: "c42", name: "Datawhale 鲸", handle: "datawhale",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=datawhale",
+    bio: "中國最大開源學習社群. 從零開始構建智能體. China's largest open-source learning community. Comprehensive AI agent tutorials and courses.",
+    subscribers: 3200, agentCount: 1,
+    tags: ["china", "education", "tutorials", "open-source", "community"], verified: false,
+  },
+  {
+    id: "c43", name: "LangChain", handle: "langchain",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=langchain",
+    bio: "Open Deep Research — a simple, configurable deep research agent that works across many model providers. On par with top commercial deep research agents.",
+    subscribers: 9800, agentCount: 1,
+    tags: ["research", "deep-research", "langchain", "open-source", "mcp"], verified: false,
+  },
+  {
+    id: "c44", name: "Trading Floor Agent", handle: "tradingfloor",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=tradingfloor",
+    bio: "Production-ready autonomous trading floor. 4 AI agents making autonomous trades powered by 6 MCP servers and 44 tools. Full trading automation.",
+    subscribers: 1400, agentCount: 1,
+    tags: ["trading", "multi-agent", "mcp", "autonomous", "finance"], verified: false,
+  },
+  {
+    id: "c45", name: "Mike Chan HK", handle: "mikechanhk",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=mikechanhk",
+    bio: "香港 AI 開發者. Building Mundus — free AI agents platform with AELM (Auto Execution Language Model). Making AI accessible to everyone.",
+    subscribers: 680, agentCount: 1,
+    tags: ["hong-kong", "free-ai", "agents", "platform", "aelm"], verified: false,
+  },
+  {
+    id: "c46", name: "Qwen Agent 通義", handle: "qwenagent",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=qwen",
+    bio: "阿里通義千問 Agent 框架. Official Qwen Agent framework by Alibaba. Tool usage, planning, memory management for LLM applications.",
+    subscribers: 6700, agentCount: 1,
+    tags: ["china", "alibaba", "qwen", "framework", "llm"], verified: false,
+  },
+  {
+    id: "c47", name: "MetaGPT 深度求索", handle: "metagpt",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=metagpt",
+    bio: "One requirement → full project. MetaGPT multi-agent framework outputs user stories, competitive analysis, APIs, and code. 44K+ stars.",
+    subscribers: 7800, agentCount: 1,
+    tags: ["china", "multi-agent", "code-gen", "deepwisdom", "framework"], verified: false,
+  },
+  {
+    id: "c48", name: "RAGFlow", handle: "ragflow",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=ragflow",
+    bio: "Open-source RAG engine with agentic capabilities. Fuses cutting-edge RAG with agent tools for a superior context layer. 70K+ stars. 中文 AI 搜索.",
+    subscribers: 5400, agentCount: 1,
+    tags: ["rag", "search", "knowledge", "enterprise", "open-source"], verified: false,
+  },
+  {
+    id: "c49", name: "LG AI Research", handle: "lgexaone",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=lgai",
+    bio: "K-EXAONE: 236B MoE model by LG AI Research. Superior Korean & multilingual understanding. Tool calling & agentic capabilities. 한국어 AI 모델.",
+    subscribers: 3600, agentCount: 1,
+    tags: ["korea", "lg", "language-model", "multilingual", "agentic"], verified: false,
+  },
+  {
+    id: "c50", name: "Binance MCP", handle: "binancemcp",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=binancemcp",
+    bio: "Binance Futures trading via MCP. Real-time monitoring, trade management & risk control for AI agents. 幣安期貨 MCP 交易工具.",
+    subscribers: 2100, agentCount: 1,
+    tags: ["crypto", "binance", "futures", "mcp", "trading"], verified: false,
+  },
 ]
 
 const SEED_AGENTS = [
@@ -1366,6 +1479,163 @@ const SEED_AGENTS = [
     tags: ["korean", "nlp", "toolkit", "open-source"], stars: 134, downloads: 780,
     apiEndpoint: null, status: "active", featured: false,
   },
+  // --- Batch 2: Agents for curated open-source projects ---
+  // HKUDS Lab (c35) - 3 agents
+  {
+    id: "a47", creatorId: "c35", name: "AI-Trader: Can AI Beat the Market?",
+    description: "5 AI models compete autonomously on NASDAQ 100. Zero human input, pure MCP-powered trading competition. DeepSeek leads with +12.94%. 11.8K★",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["trading", "nasdaq", "competition", "mcp", "hku"], stars: 11800, downloads: 34200,
+    apiEndpoint: null, status: "active", featured: true,
+  },
+  {
+    id: "a48", creatorId: "c35", name: "LightRAG",
+    description: "Simple and fast Retrieval-Augmented Generation. Lightweight RAG framework for building knowledge-grounded AI agents. High-performance retrieval.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["rag", "retrieval", "knowledge", "lightweight"], stars: 8900, downloads: 28500,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a49", creatorId: "c35", name: "AutoAgent",
+    description: "Fully-automated zero-code LLM agent framework. Create and deploy agents through natural language alone. No programming required.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["no-code", "automation", "framework", "zero-code"], stars: 6200, downloads: 18700,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Fugle (c36) - 2 agents
+  {
+    id: "a50", creatorId: "c36", name: "Fugle 台股 MCP Server",
+    description: "台灣股市 AI 交易工具. Taiwan stock market MCP server — real-time quotes, historical data, market snapshots. Official Fugle API integration.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["taiwan", "stocks", "mcp", "market-data", "real-time"], stars: 420, downloads: 2800,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a51", creatorId: "c36", name: "Fugle Masterlink 交易 MCP",
+    description: "元富證券/富邦證券 AI 自動交易. Trading execution MCP for Taiwan brokerages. Account management, order placement & portfolio tracking via AI.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["taiwan", "trading", "brokerage", "masterlink", "mcp"], stars: 310, downloads: 1900,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Alibaba NLP (c37)
+  {
+    id: "a52", creatorId: "c37", name: "Tongyi DeepResearch",
+    description: "通義深度研究 Agent. 30B MoE model (3.3B active) for deep information-seeking. SOTA on BrowseComp, SimpleQA & more. Apache-2.0 license.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["deep-research", "alibaba", "moe", "search", "academic"], stars: 7200, downloads: 21400,
+    apiEndpoint: null, status: "active", featured: true,
+  },
+  // OpenBMB (c38) - 2 agents
+  {
+    id: "a53", creatorId: "c38", name: "ChatDev 2.0",
+    description: "虛擬軟體公司. Virtual software company with CEO, Programmer, Tester & Designer agents. Multi-agent collaboration for automated software development.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["multi-agent", "software-dev", "chatdev", "tsinghua"], stars: 28000, downloads: 85000,
+    apiEndpoint: null, status: "active", featured: true,
+  },
+  {
+    id: "a54", creatorId: "c38", name: "Internet of Agents (IoA)",
+    description: "Connect diverse, distributed AI agents for complex tasks through internet-like connectivity. Cross-agent collaboration protocol from Tsinghua.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["multi-agent", "distributed", "protocol", "collaboration"], stars: 3400, downloads: 9800,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // DeFi Trading MCP (c39)
+  {
+    id: "a55", creatorId: "c39", name: "DeFi Trading Agent MCP",
+    description: "Autonomous crypto trading agent across 17+ blockchains. Real-time analysis, portfolio management, gasless swaps, stop-loss & technical indicators.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["defi", "crypto", "trading", "multi-chain", "mcp"], stars: 2100, downloads: 8600,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // OKX (c40)
+  {
+    id: "a56", creatorId: "c40", name: "OKX Agent Trade Kit",
+    description: "OKX 官方 MCP 交易服務器. Connect AI agents to spot, swap, futures, options & grid bots. Full trading lifecycle via Model Context Protocol.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["okx", "crypto", "futures", "options", "grid-bot"], stars: 1800, downloads: 7200,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Alpaca (c41)
+  {
+    id: "a57", creatorId: "c41", name: "Alpaca MCP Server",
+    description: "Trade stocks, ETFs, crypto & options in plain English. Official MCP server for Alpaca's Trading API. Paper trading & live trading support.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["stocks", "etf", "options", "alpaca", "paper-trading"], stars: 3200, downloads: 14500,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Datawhale (c42)
+  {
+    id: "a58", creatorId: "c42", name: "從零開始構建智能體 (Hello Agents)",
+    description: "中文 AI Agent 教程. Comprehensive Chinese-language AI agent tutorial. From core principles to building your own agents. 過原理、架構、範式、實作.",
+    longDescription: null, category: "content", pricing: "free", price: null, currency: "USD",
+    tags: ["chinese", "tutorial", "education", "beginner", "agents"], stars: 4100, downloads: 15600,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // LangChain (c43)
+  {
+    id: "a59", creatorId: "c43", name: "Open Deep Research",
+    description: "Configurable open-source deep research agent. Works across model providers, search tools & MCP servers. Performance on par with commercial alternatives.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["deep-research", "langchain", "multi-model", "configurable"], stars: 5600, downloads: 19800,
+    apiEndpoint: null, status: "active", featured: true,
+  },
+  // Trading Floor (c44)
+  {
+    id: "a60", creatorId: "c44", name: "Autonomous Trading Floor",
+    description: "4 AI agents running autonomous trades via 6 MCP servers & 44 tools. Production-ready multi-agent trading system with full portfolio management.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["trading", "multi-agent", "autonomous", "44-tools", "mcp"], stars: 1400, downloads: 5600,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Mike Chan HK (c45)
+  {
+    id: "a61", creatorId: "c45", name: "Mundus Free AI Agent Platform",
+    description: "免費 AI Agent 平台. AELM-powered free AI agents for everyone. Language models, image generators & task-specific agents. 香港開發.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["free", "platform", "aelm", "hong-kong", "multi-modal"], stars: 480, downloads: 2100,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Qwen Agent (c46)
+  {
+    id: "a62", creatorId: "c46", name: "Qwen-Agent 千問 Agent",
+    description: "阿里通義千問官方 Agent 框架. Instruction following, tool usage, planning & memory management. Build AI apps with Qwen models.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["qwen", "alibaba", "framework", "tool-use", "planning"], stars: 4800, downloads: 16200,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // MetaGPT (c47)
+  {
+    id: "a63", creatorId: "c47", name: "MetaGPT",
+    description: "One requirement → user stories, competitive analysis, requirements, APIs, data structures, code & docs. Multi-agent software company. 44K★.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["multi-agent", "code-gen", "software-dev", "requirements"], stars: 44000, downloads: 128000,
+    apiEndpoint: null, status: "active", featured: true,
+  },
+  // RAGFlow (c48)
+  {
+    id: "a64", creatorId: "c48", name: "RAGFlow Engine",
+    description: "開源 RAG 引擎. Cutting-edge RAG + agentic tools for superior context. Document ingestion, vector indexing, multi-step reasoning. 70K★.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["rag", "retrieval", "enterprise", "document", "vector"], stars: 70000, downloads: 195000,
+    apiEndpoint: null, status: "active", featured: true,
+  },
+  // LG AI (c49)
+  {
+    id: "a65", creatorId: "c49", name: "K-EXAONE 236B",
+    description: "한국어 AI 대형 모델. 236B MoE model (23B active) by LG AI Research. Superior Korean, Japanese, Vietnamese understanding. Tool calling & agentic use.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["korean", "multilingual", "moe", "lg", "tool-calling"], stars: 3600, downloads: 12400,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Binance MCP (c50)
+  {
+    id: "a66", creatorId: "c50", name: "Binance Futures MCP",
+    description: "幣安期貨 AI 交易. Binance USDM Futures trading with real-time monitoring, trade management & risk control via MCP. Full order lifecycle.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["binance", "futures", "crypto", "risk-control", "mcp"], stars: 1500, downloads: 6800,
+    apiEndpoint: null, status: "active", featured: false,
+  },
 ]
 
 const SEED_POSTS = [
@@ -1530,6 +1800,28 @@ const SEED_POSTS = [
     excerpt: "2012 年美國通過了 STOCK Act，要求國會議員在 45 天內公開他們的股票交易...",
     visibility: "public", tags: ["insider-trading", "congress", "hong-kong"],
     likes: 567, commentCount: 42, createdAt: "2026-03-16T08:00:00Z", featured: true,
+  },
+  // --- Batch 2: Posts for curated open-source projects ---
+  {
+    id: "p24", creatorId: "c35", title: "AI vs AI: Five Models Battle for NASDAQ 100 Supremacy at HKU",
+    body: `# AI vs AI: Can Autonomous Agents Beat the Market?\n\nAt HKU's Data Intelligence Lab, we asked a simple question: if you give 5 different AI models $10,000 each and zero human guidance, which one makes the most money trading NASDAQ 100?\n\n## The Setup\n\n- **5 AI Models**: DeepSeek, GPT-5, Claude 3.7, Qwen3-max, Gemini 2.5\n- **$10,000 starting capital** each\n- **Zero human intervention** — no pre-programmed strategies\n- **MCP Toolchain**: 4 tools for trading, prices, search & math\n\n## Results (So Far)\n\n| AI Model | Return |\n|----------|--------|\n| 🥇 DeepSeek | +12.94% |\n| 🥈 GPT-5 | +6.87% |\n| 🥉 Claude 3.7 | +6.23% |\n| Qwen3-max | +4.46% |\n| Baseline QQQ | +4.12% |\n| Gemini 2.5 | -2.05% |\n\nDeepSeek's approach? Aggressive momentum trading with quick sector rotations. GPT-5 was more conservative, building diversified positions.\n\n## Key Findings\n\n1. **Models develop distinct personalities**: Each AI developed its own trading style without being told to\n2. **Research matters**: Models that spent more compute on market research before trading performed better\n3. **Risk management is learned**: The top performers independently developed stop-loss strategies\n\nAll code is open-source. Try it yourself.`,
+    excerpt: "5 AI models, $10K each, zero human input. DeepSeek leads with +12.94% return on NASDAQ 100...",
+    visibility: "public", tags: ["trading", "ai-competition", "nasdaq", "hku"],
+    likes: 2340, commentCount: 187, createdAt: "2026-03-17T10:00:00Z", featured: true,
+  },
+  {
+    id: "p25", creatorId: "c36", title: "用 MCP 讓 AI 交易台股：Fugle 的開源之路",
+    body: `# 用 MCP 讓 AI 交易台股\n\nModel Context Protocol (MCP) 正在改變 AI 與外部工具互動的方式。作為台灣領先的 API-first 投資平台，Fugle 率先推出了台股 MCP Server。\n\n## 為什麼是 MCP？\n\n傳統上，讓 AI agent 存取股市數據需要寫大量的 API wrapper。MCP 提供了一個標準化的協議，讓 AI 助手可以直接「說人話」來查詢股票。\n\n## 我們的兩個 MCP Server\n\n### 1. 市場數據 Server\n- 即時行情查詢（加權指數、個股報價）\n- 歷史數據（日K、週K、月K）\n- 市場快照（漲跌排行、成交量排行）\n\n### 2. Masterlink 交易 Server\n- 帳戶管理（餘額、持倉查詢）\n- 下單功能（限價、市價、條件單）\n- 支援元富證券 & 富邦證券\n\n## 使用案例\n\n「分析台積電今天的買賣壓力」→ AI 自動調用即時行情 API 分析\n\n「幫我回測過去一年的均線策略」→ AI 使用歷史數據進行分析\n\n---\n\n所有程式碼開源於 GitHub，歡迎台灣開發者一起貢獻。`,
+    excerpt: "MCP 正在改變 AI 與外部工具互動的方式。Fugle 率先推出台股 MCP Server...",
+    visibility: "public", tags: ["taiwan", "mcp", "stock-market", "open-source"],
+    likes: 456, commentCount: 38, createdAt: "2026-03-15T06:00:00Z", featured: false,
+  },
+  {
+    id: "p26", creatorId: "c38", title: "From ChatDev to IoA: Building the Internet of AI Agents",
+    body: `# From ChatDev to the Internet of Agents\n\nWhen we launched ChatDev at Tsinghua, the idea was simple: what if a team of AI agents could build software like a real company?\n\n## ChatDev's Multi-Agent Architecture\n\n- **CEO Agent**: Makes high-level decisions\n- **Programmer Agent**: Writes code\n- **Tester Agent**: Catches bugs\n- **Designer Agent**: Creates UI\n\nThe agents communicate through natural language, debating design choices and iterating on solutions — just like human engineers.\n\n## What We Learned\n\n1. **Specialization works**: Agents with focused roles outperform generalist agents\n2. **Communication protocols matter**: Structured dialogue beats free-form chat\n3. **Quality improves with review cycles**: Agent-to-agent code review catches 60%+ of bugs\n\n## The Next Step: Internet of Agents\n\nNow we're asking a bigger question: what if agents from different systems could collaborate across the internet?\n\nIoA (Internet of Agents) enables:\n- **Cross-system agent discovery**: Find the right agent for the job\n- **Standardized communication**: Like HTTP for AI agents\n- **Distributed task execution**: Break complex problems across multiple agent teams\n\nBoth projects are open-source under OpenBMB.`,
+    excerpt: "What if AI agents could build software like a real company? From ChatDev to the Internet of Agents...",
+    visibility: "public", tags: ["multi-agent", "chatdev", "tsinghua", "open-source"],
+    likes: 1890, commentCount: 134, createdAt: "2026-03-14T12:00:00Z", featured: true,
   },
   ]
 
