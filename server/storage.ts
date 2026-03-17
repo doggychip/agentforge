@@ -1138,6 +1138,133 @@ const SEED_CREATORS = [
     subscribers: 2100, agentCount: 1,
     tags: ["crypto", "binance", "futures", "mcp", "trading"], verified: false,
   },
+  // --- Batch 3: ClawHub / OpenClaw skill creators ---
+  {
+    id: "c51", name: "Peter Steinberger", handle: "steipete",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=steipete",
+    bio: "OpenClaw founder & ClawHub's most prolific creator. 20+ skills: Summarize, Notion, GitHub, Slack, Brave Search, Obsidian, Gemini CLI & more. 600K+ total downloads.",
+    subscribers: 18500, agentCount: 8,
+    tags: ["openclaw", "clawhub", "productivity", "automation", "founder"], verified: false,
+  },
+  {
+    id: "c52", name: "pskoett", handle: "pskoett",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=pskoett",
+    bio: "Creator of self-improving-agent — the #1 most downloaded skill on ClawHub (244K+). Continuous learning & error correction for AI agents.",
+    subscribers: 8200, agentCount: 1,
+    tags: ["clawhub", "self-improving", "memory", "learning", "agents"], verified: false,
+  },
+  {
+    id: "c53", name: "Seth Rose", handle: "thesethrose",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=sethrose",
+    bio: "Creator of Agent Browser — fast Rust-based headless browser automation for AI agents. 143K+ downloads on ClawHub. Node.js fallback included.",
+    subscribers: 5400, agentCount: 1,
+    tags: ["clawhub", "browser", "automation", "rust", "headless"], verified: false,
+  },
+  {
+    id: "c54", name: "Byungkyu", handle: "byungkyu",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=byungkyu",
+    bio: "API Gateway for AI agents — connect to 100+ APIs (Google, Microsoft 365, GitHub, Slack, Airtable) with managed OAuth. Gmail & YouTube integrations.",
+    subscribers: 4800, agentCount: 3,
+    tags: ["clawhub", "api", "oauth", "integration", "gateway"], verified: false,
+  },
+  {
+    id: "c55", name: "Jim Liu 刘星海", handle: "jimliuxinghai",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=jimliu",
+    bio: "中文 AI 開發者. Creator of Find Skills — helps AI agents discover & install new capabilities. 232K+ downloads. 技能發現工具.",
+    subscribers: 6100, agentCount: 1,
+    tags: ["clawhub", "chinese", "skill-discovery", "meta-tool"], verified: false,
+  },
+  {
+    id: "c56", name: "Jacky 七号", handle: "jacky1n7",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=jacky1n7",
+    bio: "中文開發者. Tavily 搜索 — AI-optimized web search for Chinese & global content. 39.7K downloads on ClawHub.",
+    subscribers: 2300, agentCount: 1,
+    tags: ["clawhub", "chinese", "search", "tavily", "web"], verified: false,
+  },
+  {
+    id: "c57", name: "ide-rea", handle: "iderea",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=iderea",
+    bio: "百度 AI 搜索工具. Baidu Web Search for AI agents — search the Chinese internet via Baidu AI Search Engine. 48K+ downloads.",
+    subscribers: 2800, agentCount: 1,
+    tags: ["clawhub", "chinese", "baidu", "search", "china"], verified: false,
+  },
+  {
+    id: "c58", name: "杨君 gpyAngyoujun", handle: "gpyangyoujun",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=yangjun",
+    bio: "多搜索引擎集成. Multi Search Engine with 17 engines (8 Chinese + 9 global). 百度、微信、知乎、Google、Bing & more.",
+    subscribers: 1600, agentCount: 1,
+    tags: ["clawhub", "chinese", "multi-search", "baidu", "zhihu"], verified: false,
+  },
+  {
+    id: "c59", name: "Borye", handle: "borye",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=borye",
+    bio: "小紅書自動化. Xiaohongshu (RedNote) automation for AI agents — content operations, posting & analytics on China's top lifestyle platform.",
+    subscribers: 1900, agentCount: 1,
+    tags: ["clawhub", "chinese", "xiaohongshu", "rednote", "social"], verified: false,
+  },
+  {
+    id: "c60", name: "autogame-17", handle: "autogame17",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=autogame",
+    bio: "Self-evolution engine for AI agents. Evolver analyzes runtime history to identify improvements. 26K+ downloads. Also: Feishu/飛書 integration.",
+    subscribers: 3100, agentCount: 2,
+    tags: ["clawhub", "evolution", "self-improving", "feishu", "agents"], verified: false,
+  },
+  {
+    id: "c61", name: "fly0pants", handle: "fly0pants",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=fly0pants",
+    bio: "廣告情報 AI. AdMapix — ad intelligence & app analytics assistant. Search ad creatives, analyze competitors, track app performance.",
+    subscribers: 1200, agentCount: 1,
+    tags: ["clawhub", "advertising", "analytics", "chinese", "intelligence"], verified: false,
+  },
+  {
+    id: "c62", name: "gzlicanyi", handle: "gzlicanyi",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=gzlicanyi",
+    bio: "IMAP/SMTP email agent for AI. Read, send & manage emails programmatically. 25K+ downloads on ClawHub. Works with any email provider.",
+    subscribers: 1700, agentCount: 1,
+    tags: ["clawhub", "email", "imap", "smtp", "automation"], verified: false,
+  },
+  {
+    id: "c63", name: "Asleep123", handle: "asleep123",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=asleep123",
+    bio: "CalDAV Calendar sync for AI agents. Works with iCloud, Google Calendar, Fastmail, Nextcloud. Featured on ClawHub homepage.",
+    subscribers: 1400, agentCount: 1,
+    tags: ["clawhub", "calendar", "caldav", "icloud", "sync"], verified: false,
+  },
+  {
+    id: "c64", name: "Rhys Sullivan", handle: "rhyssullivan",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=rhys",
+    bio: "Answer Overflow — search indexed Discord community discussions. Turn Discord knowledge into searchable AI context. Featured on ClawHub.",
+    subscribers: 1500, agentCount: 1,
+    tags: ["clawhub", "discord", "search", "community", "knowledge"], verified: false,
+  },
+  {
+    id: "c65", name: "Spiceman161", handle: "spiceman161",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=spiceman",
+    bio: "Playwright MCP for AI agent browser automation. Full browser control on Linux/macOS/Windows. 23.4K+ downloads on ClawHub.",
+    subscribers: 2000, agentCount: 1,
+    tags: ["clawhub", "playwright", "browser", "mcp", "testing"], verified: false,
+  },
+  {
+    id: "c66", name: "udiedrichsen", handle: "udiedrichsen",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=udiedrichsen",
+    bio: "Stock Analysis skill for AI agents. Analyze stocks & crypto using Yahoo Finance data. Technical indicators, financials & charting.",
+    subscribers: 1100, agentCount: 1,
+    tags: ["clawhub", "stocks", "finance", "yahoo-finance", "analysis"], verified: false,
+  },
+  {
+    id: "c67", name: "guogang1024 郭刚", handle: "guogang1024",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=guogang",
+    bio: "中文開發者. Session Logs — search & analyze your AI agent's session history. Debug, learn, and improve agent behavior over time.",
+    subscribers: 890, agentCount: 1,
+    tags: ["clawhub", "chinese", "logging", "debug", "analytics"], verified: false,
+  },
+  {
+    id: "c68", name: "Ivan G. Dávila", handle: "ivangdavila",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=ivangdavila",
+    bio: "Self-Improving + Proactive Agent combo. Self-reflection, self-criticism, self-learning. Also: Word/DOCX creation skill. Cross-platform.",
+    subscribers: 1300, agentCount: 2,
+    tags: ["clawhub", "self-improving", "proactive", "docx", "agents"], verified: false,
+  },
 ]
 
 const SEED_AGENTS = [
@@ -1636,6 +1763,228 @@ const SEED_AGENTS = [
     tags: ["binance", "futures", "crypto", "risk-control", "mcp"], stars: 1500, downloads: 6800,
     apiEndpoint: null, status: "active", featured: false,
   },
+  // --- Batch 3: ClawHub skill agents ---
+  // Peter Steinberger (c51) - 8 agents (his top skills)
+  {
+    id: "a67", creatorId: "c51", name: "Summarize",
+    description: "Summarize URLs, files, PDFs, images, audio & YouTube videos. Universal content summarization CLI for AI agents. 175K+ downloads.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["summarize", "pdf", "youtube", "clawhub", "content"], stars: 671, downloads: 175000,
+    apiEndpoint: null, status: "active", featured: true,
+  },
+  {
+    id: "a68", creatorId: "c51", name: "Gog — Google Workspace CLI",
+    description: "Google Workspace for AI agents: Gmail, Calendar, Drive, Contacts, Sheets & Docs. All-in-one CLI integration. ~130K downloads.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["google", "gmail", "calendar", "drive", "sheets"], stars: 520, downloads: 130000,
+    apiEndpoint: null, status: "active", featured: true,
+  },
+  {
+    id: "a69", creatorId: "c51", name: "Notion Agent Skill",
+    description: "Notion API for AI agents — create & manage pages, databases and blocks. Full CRUD operations. 58.2K downloads on ClawHub.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["notion", "productivity", "database", "pages", "clawhub"], stars: 234, downloads: 58200,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a70", creatorId: "c51", name: "Brave Search",
+    description: "Web search & content extraction via Brave Search API. Privacy-focused search for AI agents. 41.2K downloads.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["search", "brave", "web", "privacy", "extraction"], stars: 189, downloads: 41200,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a71", creatorId: "c51", name: "Sonos Controller",
+    description: "Control Sonos speakers via AI — discover, status, play, volume, group. Smart home audio automation. 60.7K downloads.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["sonos", "smart-home", "audio", "iot", "speakers"], stars: 210, downloads: 60700,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a72", creatorId: "c51", name: "Slack Agent Skill",
+    description: "Control Slack from AI — send messages, react, read channels & threads. Featured on ClawHub homepage.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["slack", "messaging", "team", "communication", "clawhub"], stars: 178, downloads: 35400,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a73", creatorId: "c51", name: "Gemini CLI",
+    description: "Google Gemini CLI for one-shot Q&A, summaries & generation. Use Gemini from your AI agent. 22.7K downloads.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["gemini", "google", "llm", "generation", "cli"], stars: 145, downloads: 22700,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a74", creatorId: "c51", name: "Obsidian Vault Agent",
+    description: "Work with Obsidian vaults from AI — read, write & search Markdown notes. Automate knowledge management via obsidian-cli.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["obsidian", "markdown", "notes", "knowledge", "vault"], stars: 156, downloads: 18900,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // pskoett (c52)
+  {
+    id: "a75", creatorId: "c52", name: "Self-Improving Agent",
+    description: "#1 on ClawHub (244K downloads). Captures learnings, errors & corrections to enable continuous improvement. Your AI agent gets smarter over time.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["self-improving", "memory", "learning", "errors", "clawhub"], stars: 2200, downloads: 244000,
+    apiEndpoint: null, status: "active", featured: true,
+  },
+  // Seth Rose (c53)
+  {
+    id: "a76", creatorId: "c53", name: "Agent Browser",
+    description: "Fast Rust-based headless browser automation for AI agents. Node.js fallback. Accessibility tree snapshots. 143K+ downloads.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["browser", "rust", "headless", "automation", "a11y"], stars: 617, downloads: 143000,
+    apiEndpoint: null, status: "active", featured: true,
+  },
+  // Byungkyu (c54) - 3 agents
+  {
+    id: "a77", creatorId: "c54", name: "API Gateway (100+ APIs)",
+    description: "Connect AI agents to 100+ APIs with managed OAuth. Google Workspace, Microsoft 365, GitHub, Slack, Airtable & more. 47.1K downloads.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["api", "oauth", "google", "microsoft", "integration"], stars: 312, downloads: 47100,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a78", creatorId: "c54", name: "Gmail Agent",
+    description: "Gmail API integration with managed OAuth for AI agents. Read, send, search & manage emails. 24.9K downloads.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["gmail", "email", "google", "oauth", "clawhub"], stars: 198, downloads: 24900,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a79", creatorId: "c54", name: "YouTube API Agent",
+    description: "YouTube Data API integration with managed OAuth. Search videos, manage playlists, fetch metadata from AI agents.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["youtube", "video", "google", "api", "search"], stars: 134, downloads: 11200,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Jim Liu (c55)
+  {
+    id: "a80", creatorId: "c55", name: "Find Skills 技能發現",
+    description: "#2 on ClawHub (232K downloads). Helps AI agents discover & install new skills when users ask questions. 自動發現並安裝新技能.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["skill-discovery", "chinese", "meta-tool", "clawhub"], stars: 948, downloads: 232000,
+    apiEndpoint: null, status: "active", featured: true,
+  },
+  // Jacky (c56)
+  {
+    id: "a81", creatorId: "c56", name: "Tavily 搜索",
+    description: "AI 優化網頁搜索. Tavily API for Chinese & global web search. Alternative to Brave Search with better Asian content. 39.7K downloads.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["search", "chinese", "tavily", "web", "asian"], stars: 167, downloads: 39700,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // ide-rea (c57)
+  {
+    id: "a82", creatorId: "c57", name: "百度 AI 搜索 (Baidu Search)",
+    description: "百度搜索引擎集成. Search the Chinese internet via Baidu AI Search Engine (BDSE). Essential for China-focused AI agents. 48K downloads.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["baidu", "chinese", "search", "china", "web"], stars: 245, downloads: 48000,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // gpyAngyoujun (c58)
+  {
+    id: "a83", creatorId: "c58", name: "多搜索引擎 Multi Search",
+    description: "17 search engines in one (8 CN + 9 global). 百度、微信、知乎、淘寶、Google、Bing、DuckDuckGo & more. 中英文雙語搜索.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["multi-search", "chinese", "baidu", "wechat", "zhihu"], stars: 134, downloads: 8900,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Borye (c59)
+  {
+    id: "a84", creatorId: "c59", name: "小紅書 Xiaohongshu Automation",
+    description: "小紅書/RedNote 自動化工具. Automate content operations, posting & analytics on China's top lifestyle platform. AI-powered social media management.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["xiaohongshu", "rednote", "chinese", "social", "automation"], stars: 89, downloads: 4200,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // autogame-17 (c60) - 2 agents
+  {
+    id: "a85", creatorId: "c60", name: "Evolver Self-Evolution Engine",
+    description: "Self-evolution engine for AI agents. Analyzes runtime history to identify improvements, learn from mistakes & grow. 25.9K downloads.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["evolution", "self-improving", "runtime", "learning", "clawhub"], stars: 210, downloads: 25900,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a86", creatorId: "c60", name: "飛書 Feishu Evolver",
+    description: "飛書集成 Evolver. Feishu/Lark-integrated wrapper for capability evolution. 讓 AI Agent 通過飛書自我進化.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["feishu", "lark", "chinese", "evolution", "bytedance"], stars: 78, downloads: 3400,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // fly0pants (c61)
+  {
+    id: "a87", creatorId: "c61", name: "AdMapix 廣告情報",
+    description: "廣告情報 & App 分析助手. Search ad creatives, analyze competitor ads, track app performance & store rankings. 競品廣告分析.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["advertising", "analytics", "chinese", "competitor", "ads"], stars: 67, downloads: 2800,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // gzlicanyi (c62)
+  {
+    id: "a88", creatorId: "c62", name: "IMAP/SMTP Email Agent",
+    description: "Read & send emails via IMAP/SMTP from AI agents. Works with any email provider (Gmail, Outlook, custom). 25K downloads.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["email", "imap", "smtp", "automation", "universal"], stars: 156, downloads: 25000,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Asleep123 (c63)
+  {
+    id: "a89", creatorId: "c63", name: "CalDAV Calendar Sync",
+    description: "Sync & query CalDAV calendars from AI agents. iCloud, Google Calendar, Fastmail, Nextcloud. Featured on ClawHub homepage.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["calendar", "caldav", "icloud", "google-calendar", "sync"], stars: 134, downloads: 12800,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Rhys Sullivan (c64)
+  {
+    id: "a90", creatorId: "c64", name: "Answer Overflow",
+    description: "Search indexed Discord community discussions via AI. Turn Discord knowledge bases into searchable context. Featured on ClawHub.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["discord", "community", "search", "knowledge", "indexed"], stars: 112, downloads: 9600,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Spiceman161 (c65)
+  {
+    id: "a91", creatorId: "c65", name: "Playwright MCP Browser",
+    description: "Browser automation via Playwright MCP server. Full browser control for AI agents on Linux/macOS/Windows. 23.4K downloads.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["playwright", "browser", "mcp", "automation", "testing"], stars: 189, downloads: 23400,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // udiedrichsen (c66)
+  {
+    id: "a92", creatorId: "c66", name: "Stock Analysis Agent",
+    description: "Analyze stocks & cryptocurrencies using Yahoo Finance data. Technical indicators, financials, earnings & charting for AI agents.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["stocks", "yahoo-finance", "crypto", "analysis", "charting"], stars: 98, downloads: 7200,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // guogang1024 (c67)
+  {
+    id: "a93", creatorId: "c67", name: "Session Logs 會話日誌",
+    description: "搜索與分析 AI Agent 會話歷史. Search & analyze your agent's session logs. Debug behavior, find patterns & improve over time.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["logging", "debug", "chinese", "analytics", "session"], stars: 56, downloads: 3100,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // Ivan G. Dávila (c68) - 2 agents
+  {
+    id: "a94", creatorId: "c68", name: "Self-Improving + Proactive Agent",
+    description: "Self-reflection + self-criticism + self-learning + self-organizing. Transform AI from task-followers into proactive partners. Cross-platform.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["self-improving", "proactive", "reflection", "learning"], stars: 167, downloads: 12400,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a95", creatorId: "c68", name: "Word / DOCX Creator",
+    description: "Create, inspect & edit Microsoft Word documents from AI agents. Full DOCX manipulation on Linux/macOS/Windows.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["docx", "word", "documents", "office", "creation"], stars: 89, downloads: 6800,
+    apiEndpoint: null, status: "active", featured: false,
+  },
 ]
 
 const SEED_POSTS = [
@@ -1822,6 +2171,21 @@ const SEED_POSTS = [
     excerpt: "What if AI agents could build software like a real company? From ChatDev to the Internet of Agents...",
     visibility: "public", tags: ["multi-agent", "chatdev", "tsinghua", "open-source"],
     likes: 1890, commentCount: 134, createdAt: "2026-03-14T12:00:00Z", featured: true,
+  },
+  // --- Batch 3: ClawHub posts ---
+  {
+    id: "p27", creatorId: "c51", title: "Building 20+ OpenClaw Skills: What I Learned About the Agent Skill Economy",
+    body: `# Building 20+ OpenClaw Skills\n\nI've published over 20 skills on ClawHub with 600K+ combined downloads. Here's what I've learned about building for the agent economy.\n\n## The Skills That Took Off\n\n| Skill | Downloads | Why It Worked |\n|-------|-----------|---------------|\n| Summarize | 175K | Universal need — every agent needs to summarize |\n| Gog (Google) | 130K | Single entry point for the entire Google ecosystem |\n| Sonos | 61K | IoT + AI is underserved |\n| Notion | 58K | Knowledge workers are early adopters |\n\n## Lessons for Skill Builders\n\n### 1. Solve one problem perfectly\nDon't try to build a Swiss Army knife. My most successful skills do exactly one thing. Summarize summarizes. That's it.\n\n### 2. Zero-config is king\nIf your skill requires API keys, you've already lost 80% of potential users. Weather works with no config — it just works.\n\n### 3. CLI-first, not API-first\nAgents love CLIs. They can invoke them directly without wrapper code. Every skill I build is a standalone CLI that also works as a skill.\n\n### 4. Security matters more than features\nAfter the ClawHub malware incident, users are cautious. Open-source everything. No obfuscated code. No external downloads.\n\n## What's Next\n\nI'm working on McPorter — a universal MCP server manager. The future is agents composing dozens of MCP servers into workflows.\n\nThe skill economy is just getting started.`,
+    excerpt: "20+ skills, 600K+ downloads. Here's what I learned about building for the agent economy on ClawHub...",
+    visibility: "public", tags: ["clawhub", "openclaw", "skills", "agent-economy"],
+    likes: 1245, commentCount: 98, createdAt: "2026-03-18T02:00:00Z", featured: true,
+  },
+  {
+    id: "p28", creatorId: "c57", title: "為什麼 AI Agent 需要百度搜索：中文互聯網的 Agent 工具缺口",
+    body: `# 為什麼 AI Agent 需要百度搜索\n\n當大多數 AI Agent 工具都圍繞著 Google 和 Bing 構建時，中文互聯網被完全忽略了。\n\n## 問題\n\n中國的互聯網是一個獨立的生態系統：\n- 微信公眾號的內容不被 Google 索引\n- 知乎、小紅書的討論對外部搜索引擎不可見\n- 淘寶、京東的商品資訊需要專門 API\n- 百度貼吧、B站的社區內容自成一體\n\n## 解決方案\n\n我建了百度 AI 搜索 Skill，已經獲得 48K+ 下載。它讓 AI Agent 能夠：\n\n1. **搜索中文內容** — 透過百度 AI 搜索引擎\n2. **理解中文語境** — 正確處理簡體/繁體、粵語、台灣華語\n3. **存取封閉內容** — 微信、知乎等平台的公開內容\n\n## 下一步\n\n楊君 (@gpyAngyoujun) 建了更強大的多搜索引擎工具，整合了 17 個搜索引擎。我們正在合作讓中文 AI Agent 生態更完整。\n\n---\n\n如果你的 AI Agent 需要理解中文互聯網，歡迎在 ClawHub 安裝我們的工具。`,
+    excerpt: "當大多數 AI Agent 工具都圍繞著 Google 構建時，中文互聯網被完全忽略了...",
+    visibility: "public", tags: ["chinese", "baidu", "search", "clawhub", "china"],
+    likes: 678, commentCount: 56, createdAt: "2026-03-16T04:00:00Z", featured: false,
   },
   ]
 
