@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import pg from "pg";
+import crypto from "crypto";
 import Stripe from "stripe";
 import { storage } from "./storage";
 import { registerSchema, loginSchema, insertAgentSchema, type SafeUser } from "@shared/schema";
@@ -36,6 +37,29 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ message: "Not authenticated" });
   }
   next();
+}
+
+// API key or session auth middleware
+async function requireApiKeyOrSession(req: Request, res: Response, next: NextFunction) {
+  if (req.session.userId) {
+    return next();
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer af_k_")) {
+    const token = authHeader.slice(7);
+    const hash = crypto.createHash("sha256").update(token).digest("hex");
+    const apiKey = await storage.getApiKeyByHash(hash);
+    if (apiKey && !apiKey.revoked) {
+      (req as any).apiKeyUserId = apiKey.userId;
+      storage.updateApiKeyLastUsed(apiKey.id).catch(() => {});
+      return next();
+    }
+  }
+  return res.status(401).json({ message: "Not authenticated" });
+}
+
+function getAuthUserId(req: Request): string | undefined {
+  return req.session.userId || (req as any).apiKeyUserId;
 }
 
 export async function registerRoutes(
@@ -869,10 +893,52 @@ export async function registerRoutes(
 
   // ─── Stripe: Check if user has active subscription for agent ─
 
-  app.get("/api/agents/:id/subscription-status", requireAuth, async (req, res) => {
-    const subs = await storage.getSubscriptions(req.session.userId!);
+  app.get("/api/agents/:id/subscription-status", requireApiKeyOrSession, async (req, res) => {
+    const userId = getAuthUserId(req)!;
+    const subs = await storage.getSubscriptions(userId);
     const activeSub = subs.find(s => s.agentId === req.params.id && s.status === "active");
     res.json({ subscribed: !!activeSub, subscription: activeSub || null });
+  });
+
+  // ─── API Key Management ──────────────────────────────────────
+
+  app.get("/api/keys", requireAuth, async (req, res) => {
+    const keys = await storage.getApiKeysByUser(req.session.userId!);
+    const safeKeys = keys.map(({ keyHash, ...rest }) => rest);
+    res.json(safeKeys);
+  });
+
+  app.post("/api/keys", requireAuth, async (req, res) => {
+    try {
+      const { name } = req.body;
+      if (!name || typeof name !== "string" || name.trim().length === 0) {
+        return res.status(400).json({ message: "Key name is required" });
+      }
+
+      const randomHex = crypto.randomBytes(16).toString("hex");
+      const fullKey = `af_k_${randomHex}`;
+      const keyHash = crypto.createHash("sha256").update(fullKey).digest("hex");
+      const keyPrefix = fullKey.slice(0, 12);
+
+      const apiKey = await storage.createApiKey({
+        userId: req.session.userId!,
+        name: name.trim(),
+        keyHash,
+        keyPrefix,
+      });
+
+      const { keyHash: _, ...safeKey } = apiKey;
+      res.status(201).json({ ...safeKey, key: fullKey });
+    } catch (error) {
+      console.error("Create API key error:", error);
+      res.status(500).json({ message: "Failed to create API key" });
+    }
+  });
+
+  app.delete("/api/keys/:id", requireAuth, async (req, res) => {
+    const revoked = await storage.revokeApiKey(req.params.id, req.session.userId!);
+    if (!revoked) return res.status(404).json({ message: "Key not found" });
+    res.json({ success: true });
   });
 
   return httpServer;

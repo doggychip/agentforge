@@ -39,6 +39,21 @@ export async function migrateIfNeeded() {
     `);
     console.log("[db] Session table ensured");
 
+    // Always ensure api_keys table exists (new feature addition)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "api_keys" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" varchar NOT NULL,
+        "name" text NOT NULL,
+        "key_hash" text NOT NULL,
+        "key_prefix" text NOT NULL,
+        "last_used_at" timestamp,
+        "created_at" timestamp NOT NULL DEFAULT now(),
+        "revoked" boolean NOT NULL DEFAULT false
+      );
+    `);
+    console.log("[db] API keys table ensured");
+
     // Check if main data tables already exist
     const result = await client.query(
       `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'creators'`

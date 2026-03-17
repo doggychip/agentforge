@@ -7,7 +7,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Notification } from "@shared/schema";
 import {
   Sun, Moon, Bot, Compass, Users, Zap, Menu, X, LogOut, User as UserIcon, Newspaper, PenSquare,
-  Bell, Heart, MessageCircle, UserPlus, FileText, LayoutDashboard
+  Bell, Heart, MessageCircle, UserPlus, FileText, LayoutDashboard, Key
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -277,6 +277,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-write">
                           <PenSquare size={14} />
                           Write a post
+                        </DropdownMenuItem>
+                      </Link>
+                      <Link href="/settings/api-keys" className="no-underline">
+                        <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-api-keys">
+                          <Key size={14} />
+                          API Keys
                         </DropdownMenuItem>
                       </Link>
                       <DropdownMenuSeparator />

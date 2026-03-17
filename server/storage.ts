@@ -8,8 +8,9 @@ import {
   type CreatorSubscription, type InsertCreatorSubscription,
   type Review, type InsertReview,
   type Notification, type InsertNotification,
+  type ApiKey, type InsertApiKey,
   users, creators, agents, posts, postLikes, comments, subscriptions,
-  creatorSubscriptions, reviews, notifications,
+  creatorSubscriptions, reviews, notifications, apiKeys,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -81,6 +82,13 @@ export interface IStorage {
   updateSubscription(id: string, data: Partial<Subscription>): Promise<Subscription | undefined>;
   getSubscriptionByStripeSessionId(sessionId: string): Promise<Subscription | undefined>;
   getSubscriptionByStripeSubId(stripeSubId: string): Promise<Subscription | undefined>;
+
+  // API Keys
+  getApiKeysByUser(userId: string): Promise<ApiKey[]>;
+  createApiKey(key: InsertApiKey): Promise<ApiKey>;
+  getApiKeyByHash(keyHash: string): Promise<ApiKey | undefined>;
+  revokeApiKey(id: string, userId: string): Promise<boolean>;
+  updateApiKeyLastUsed(id: string): Promise<void>;
 
   seed(): Promise<void>;
 }
@@ -322,6 +330,26 @@ class PgStorage implements IStorage {
     return sub;
   }
 
+  // API Keys (Pg)
+  async getApiKeysByUser(userId: string) {
+    return db!.select().from(apiKeys).where(eq(apiKeys.userId, userId)).orderBy(desc(apiKeys.createdAt));
+  }
+  async createApiKey(key: InsertApiKey) {
+    const [created] = await db!.insert(apiKeys).values(key).returning();
+    return created;
+  }
+  async getApiKeyByHash(keyHash: string) {
+    const [key] = await db!.select().from(apiKeys).where(eq(apiKeys.keyHash, keyHash));
+    return key;
+  }
+  async revokeApiKey(id: string, userId: string) {
+    const result = await db!.update(apiKeys).set({ revoked: true }).where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId))).returning();
+    return result.length > 0;
+  }
+  async updateApiKeyLastUsed(id: string) {
+    await db!.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, id));
+  }
+
   async seed() {
     const existing = await db!.select().from(creators).limit(1);
     if (existing.length > 0) return;
@@ -344,6 +372,7 @@ class MemStorage implements IStorage {
   private creatorSubsMap: Map<string, CreatorSubscription>;
   private reviewsMap: Map<string, Review>;
   private notificationsMap: Map<string, Notification>;
+  private apiKeysMap: Map<string, ApiKey>;
 
   constructor() {
     this.usersMap = new Map();
@@ -356,6 +385,7 @@ class MemStorage implements IStorage {
     this.creatorSubsMap = new Map();
     this.reviewsMap = new Map();
     this.notificationsMap = new Map();
+    this.apiKeysMap = new Map();
   }
 
   async seed() {
@@ -594,6 +624,30 @@ class MemStorage implements IStorage {
   }
   async getSubscriptionByStripeSubId(stripeSubId: string) {
     return Array.from(this.subscriptionsMap.values()).find(s => s.stripeSubscriptionId === stripeSubId);
+  }
+
+  // API Keys (Mem)
+  async getApiKeysByUser(userId: string) {
+    return Array.from(this.apiKeysMap.values()).filter(k => k.userId === userId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  async createApiKey(key: InsertApiKey) {
+    const id = randomUUID();
+    const apiKey: ApiKey = { ...key, id, lastUsedAt: null, createdAt: new Date(), revoked: false };
+    this.apiKeysMap.set(id, apiKey);
+    return apiKey;
+  }
+  async getApiKeyByHash(keyHash: string) {
+    return Array.from(this.apiKeysMap.values()).find(k => k.keyHash === keyHash);
+  }
+  async revokeApiKey(id: string, userId: string) {
+    const key = this.apiKeysMap.get(id);
+    if (!key || key.userId !== userId) return false;
+    key.revoked = true;
+    return true;
+  }
+  async updateApiKeyLastUsed(id: string) {
+    const key = this.apiKeysMap.get(id);
+    if (key) key.lastUsedAt = new Date();
   }
 }
 
