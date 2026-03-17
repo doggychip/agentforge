@@ -82,37 +82,13 @@ export async function registerRoutes(
 
   app.use(session(sessionConfig));
 
-  // ─── Diagnostics ────────────────────────────────────────────
-  app.get("/api/debug/status", async (_req, res) => {
-    let sessionCount = "unknown";
-    let sessionTableExists = false;
-    let allTables: string[] = [];
-    let dbError = "";
-    try {
-      const pool2 = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-      // List all tables
-      const tablesResult = await pool2.query(
-        `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`
-      );
-      allTables = tablesResult.rows.map((r: any) => r.table_name);
-      sessionTableExists = allTables.includes('user_sessions');
-      if (sessionTableExists) {
-        const countResult = await pool2.query('SELECT COUNT(*) FROM user_sessions');
-        sessionCount = countResult.rows[0].count;
-      }
-      await pool2.end();
-    } catch (e: any) {
-      dbError = e.message;
-    }
+  // ─── Health Check ───────────────────────────────────────────
+  app.get("/api/health", (_req, res) => {
     res.json({
-      databaseUrl: process.env.DATABASE_URL ? "SET (" + process.env.DATABASE_URL.substring(0, 30) + "...)" : "NOT SET",
-      stripeKey: process.env.STRIPE_SECRET_KEY ? "SET" : "NOT SET",
-      sessionStore: sessionConfig.store ? "Postgres" : "MemoryStore",
-      nodeEnv: process.env.NODE_ENV || "not set",
-      sessionTableExists,
-      sessionCount,
-      allTables,
-      dbError: dbError || undefined,
+      status: "ok",
+      database: process.env.DATABASE_URL ? "connected" : "in-memory",
+      stripe: STRIPE_KEY ? "configured" : "not configured",
+      sessionStore: sessionConfig.store ? "postgres" : "memory",
     });
   });
 
