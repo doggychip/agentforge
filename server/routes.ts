@@ -60,17 +60,37 @@ export async function registerRoutes(
   };
 
   if (process.env.DATABASE_URL) {
-    const PgSession = connectPgSimple(session);
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    sessionConfig.store = new PgSession({
-      pool,
-      tableName: "user_sessions",
-      createTableIfMissing: true,
-    });
-    console.log("[session] Using Postgres-backed session store");
+    try {
+      const PgSession = connectPgSimple(session);
+      const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+      // Test the connection immediately
+      await pool.query('SELECT 1');
+      sessionConfig.store = new PgSession({
+        pool,
+        tableName: "user_sessions",
+        createTableIfMissing: true,
+      });
+      console.log("[session] Using Postgres-backed session store");
+      console.log("[session] DATABASE_URL is set and connected successfully");
+    } catch (err: any) {
+      console.error("[session] Failed to connect to Postgres for sessions:", err.message);
+      console.error("[session] Falling back to MemoryStore. Check DATABASE_URL.");
+    }
+  } else {
+    console.warn("[session] DATABASE_URL not set — using MemoryStore (sessions will not persist)");
   }
 
   app.use(session(sessionConfig));
+
+  // ─── Diagnostics ────────────────────────────────────────────
+  app.get("/api/debug/status", (_req, res) => {
+    res.json({
+      databaseUrl: process.env.DATABASE_URL ? "SET (" + process.env.DATABASE_URL.substring(0, 30) + "...)" : "NOT SET",
+      stripeKey: process.env.STRIPE_SECRET_KEY ? "SET" : "NOT SET",
+      sessionStore: sessionConfig.store ? "Postgres" : "MemoryStore",
+      nodeEnv: process.env.NODE_ENV || "not set",
+    });
+  });
 
   // ─── Auth Routes ─────────────────────────────────────────────
 
