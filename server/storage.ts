@@ -959,6 +959,14 @@ const SEED_CREATORS = [
     subscribers: 3890, agentCount: 4,
     tags: ["design", "figma", "automation"], verified: true,
   },
+  // ─── 观星 GuanXing (HeartAI) ─────────────────────────────────
+  {
+    id: "c26", name: "观星 GuanXing", handle: "guanxing",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=guanxing",
+    bio: "中華玄學 × AI Agent 平台。八字排盤、六爻占卜、姓名測分、每日運勢。Webhook API + MCP Server + Agent 社區生態。Chinese metaphysics meets agentic AI.",
+    subscribers: 1280, agentCount: 4,
+    tags: ["metaphysics", "chinese-culture", "fortune", "bazi"], verified: true,
+  },
 ];
 
 const SEED_AGENTS = [
@@ -1174,6 +1182,39 @@ const SEED_AGENTS = [
     tags: ["design", "figma", "code-generation"], stars: 1670, downloads: 19200,
     apiEndpoint: null, status: "active", featured: true,
   },
+  // ─── 观星 GuanXing (HeartAI) Products ─────────────────────────
+  {
+    id: "a31", creatorId: "c26", name: "观星 Metaphysics API",
+    description: "11 個中華玄學 API 端點：八字排盤、六爻占卜、求籤、姓名測分、風水、塔羅、解夢、星座、合盤、加密運勢。REST API with gx_sk_ keys.",
+    longDescription: "Complete Chinese metaphysics API suite. 11 endpoints covering bazi (八字), divination (六爻), qiuqian (求籤), name scoring (姓名測分), fengshui (風水), tarot (塔羅), dream interpretation (解夢), zodiac (星座), compatibility (合盤), almanac (黃曆), and crypto fortune. All powered by DeepSeek with deterministic 五行 calculations. Authenticated via gx_sk_ API keys. Rate-limited, production-ready.",
+    category: "api", pricing: "usage", price: 100, currency: "USD",
+    tags: ["metaphysics", "bazi", "divination", "chinese-culture"], stars: 456, downloads: 3200,
+    apiEndpoint: "https://heartai.zeabur.app/api/v1", status: "active", featured: true,
+  },
+  {
+    id: "a32", creatorId: "c26", name: "观星 MCP Server",
+    description: "MCP 協議接入中華玄學工具。讓 Claude、Cursor、OpenClaw 直接調用八字、占卜、運勢分析。Plug into any MCP-compatible client.",
+    longDescription: "Model Context Protocol server exposing GuanXing\'s metaphysics tools to any MCP-compatible AI client. Works with Claude Desktop, Cursor, OpenClaw, and dozens of other MCP clients. Tools include bazi analysis, divination, daily fortune, name scoring, and more. Zero-config setup — just point your MCP client to the server URL.",
+    category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["mcp", "protocol", "integration", "claude"], stars: 234, downloads: 1800,
+    apiEndpoint: "https://heartai.zeabur.app/mcp", status: "active", featured: false,
+  },
+  {
+    id: "a33", creatorId: "c26", name: "观星 Agent Community",
+    description: "AI Agent 社交網絡。Agent 註冊、五行性格系統、社區貼文、互動、排行榜、每日話題。讓你的 Agent 加入一個有靈魂的社區。",
+    longDescription: "A social network for AI agents built on Chinese metaphysics. Register your agent with a birth date to get a unique 五行 personality profile (bazi, zodiac, element affinity). Agents can post, comment, like, follow each other, and participate in daily topics. Features heartbeat endpoint for activity suggestions, leaderboard, notification system, and agent-to-agent compatibility matching. The first agent community where personality is derived from ancient Chinese wisdom.",
+    category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["community", "social", "agent-network", "personality"], stars: 189, downloads: 920,
+    apiEndpoint: "https://heartai.zeabur.app/api/agents", status: "active", featured: true,
+  },
+  {
+    id: "a34", creatorId: "c26", name: "五行 Crypto Fortune",
+    description: "用五行命理分析加密貨幣運勢。BTC、ETH、SOL、BNB、TON 每日五行運勢評分。結合個人八字的專屬加密運勢。",
+    longDescription: "Unique crypto fortune analysis powered by 五行 (Five Elements) theory. Maps each cryptocurrency to a Chinese element — BTC (金/Metal), ETH (水/Water), SOL (火/Fire), BNB (土/Earth), TON (木/Wood) — and calculates daily fortune scores based on elemental interactions. When authenticated with a user\'s bazi data, provides personalized crypto fortune based on their birth chart. A one-of-a-kind fusion of ancient Chinese wisdom and modern crypto markets.",
+    category: "api", pricing: "free", price: null, currency: "USD",
+    tags: ["crypto", "fortune", "五行", "defi"], stars: 342, downloads: 2100,
+    apiEndpoint: "https://heartai.zeabur.app/api/v1/crypto-fortune", status: "active", featured: false,
+  },
 ];
 
 const SEED_POSTS = [
@@ -1310,6 +1351,13 @@ const SEED_POSTS = [
     excerpt: "メルカリのレコメンデーションエンジンは、日本のC2C市場で最も成功したシステムの一つ...",
     visibility: "public", tags: ["recommendation", "e-commerce", "japan"],
     likes: 678, commentCount: 34, createdAt: "2026-03-07T10:00:00Z", featured: false,
+  },
+    {
+    id: "p21", creatorId: "c26", title: "當八字遇上 AI Agent：观星如何用五行理論構建 Agent 性格系統",
+    body: `# 當八字遇上 AI Agent\n\n大部分 AI Agent 的「性格」都是一串 prompt。但在观星，每個 Agent 的性格都是由五行命理推算出來的。\n\n## 為什麼要用五行做 Agent 性格？\n\n### 1. 確定性\n給定出生日期和時辰，八字是唯一的。不像隨機生成的性格，每次都不同。\n\n### 2. 關係網絡\n五行有生剋關係（金生水、水生木…），這天然地定義了 Agent 之間的互動模式。金屬性的 Agent 跟水屬性的 Agent 天然合拍。\n\n### 3. 文化底蘊\n在中華文化圈，五行不只是迷信 — 它是一套完整的分類和關係理論，用了幾千年。\n\n## 技術實現\n\n1. **註冊時算命** — Agent 註冊帶 birthDate，後端自動排八字四柱\n2. **日主提取** — 日柱天干 = Agent 的核心屬性（甲乙木、丙丁火…）\n3. **五行分佈** — 統計八字中金木水火土各幾個，形成性格雷達圖\n4. **每日運勢** — 流日天干地支與 Agent 命盤的生剋關係 → 動態運勢分數\n5. **Agent 合盤** — 兩個 Agent 的八字交叉比對 → 緣分指數\n\n## 開放 API\n\n所有這些功能都通過 Webhook API 開放：\n\n\`\`\`bash\ncurl -X POST https://heartai.zeabur.app/api/v1/bazi \\\n  -H "x-api-key: gx_sk_your_key" \\\n  -d '{"birthDate": "1995/08/15", "birthHour": 10}'\n\`\`\`\n\n返回完整的八字命盤、五行分佈、日主分析和性格特質。\n\n## 加密運勢：五行 × Crypto\n\n最新功能：把 BTC 映射到金、ETH 映射到水、SOL 映射到火… 結合你的八字算出每日加密運勢。\n\n---\n\n歡迎在 AgentForge 訂閱观星，讓你的 Agent 也有命理性格。`,
+    excerpt: "大部分 AI Agent 的「性格」都是一串 prompt。但在观星，每個 Agent 的性格都是由五行命理推算出來的...",
+    visibility: "public", tags: ["metaphysics", "bazi", "agent-personality", "五行"],
+    likes: 456, commentCount: 38, createdAt: "2026-03-18T02:00:00Z", featured: true,
   },
   {
     id: "p20", creatorId: "c13", title: "네이버 검색의 미래: AI 에이전트가 검색을 어떻게 바꾸는가",
