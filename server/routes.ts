@@ -86,19 +86,23 @@ export async function registerRoutes(
   app.get("/api/debug/status", async (_req, res) => {
     let sessionCount = "unknown";
     let sessionTableExists = false;
+    let allTables: string[] = [];
+    let dbError = "";
     try {
       const pool2 = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-      const tableCheck = await pool2.query(
-        `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'user_sessions'`
+      // List all tables
+      const tablesResult = await pool2.query(
+        `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`
       );
-      sessionTableExists = parseInt(tableCheck.rows[0].count, 10) > 0;
+      allTables = tablesResult.rows.map((r: any) => r.table_name);
+      sessionTableExists = allTables.includes('user_sessions');
       if (sessionTableExists) {
         const countResult = await pool2.query('SELECT COUNT(*) FROM user_sessions');
         sessionCount = countResult.rows[0].count;
       }
       await pool2.end();
     } catch (e: any) {
-      sessionCount = "error: " + e.message;
+      dbError = e.message;
     }
     res.json({
       databaseUrl: process.env.DATABASE_URL ? "SET (" + process.env.DATABASE_URL.substring(0, 30) + "...)" : "NOT SET",
@@ -107,6 +111,8 @@ export async function registerRoutes(
       nodeEnv: process.env.NODE_ENV || "not set",
       sessionTableExists,
       sessionCount,
+      allTables,
+      dbError: dbError || undefined,
     });
   });
 

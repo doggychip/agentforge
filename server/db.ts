@@ -27,18 +27,38 @@ export async function migrateIfNeeded() {
 
   const client = await pool.connect();
   try {
-    // Check if tables already exist
+    // Always ensure session table exists (might be missing from earlier migrations)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "user_sessions" (
+        "sid" varchar NOT NULL COLLATE "default",
+        "sess" json NOT NULL,
+        "expire" timestamp(6) NOT NULL,
+        PRIMARY KEY ("sid")
+      );
+      CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "user_sessions" ("expire");
+    `);
+    console.log("[db] Session table ensured");
+
+    // Check if main data tables already exist
     const result = await client.query(
       `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'creators'`
     );
     if (parseInt(result.rows[0].count, 10) > 0) {
-      console.log("[db] Tables already exist, skipping migration");
+      console.log("[db] Data tables already exist, skipping migration");
       return;
     }
 
     console.log("[db] Running auto-migration — creating tables...");
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS "user_sessions" (
+        "sid" varchar NOT NULL COLLATE "default",
+        "sess" json NOT NULL,
+        "expire" timestamp(6) NOT NULL,
+        PRIMARY KEY ("sid")
+      );
+      CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "user_sessions" ("expire");
+
       CREATE TABLE IF NOT EXISTS "users" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
         "username" text NOT NULL UNIQUE,
