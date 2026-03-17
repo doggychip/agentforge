@@ -967,7 +967,65 @@ const SEED_CREATORS = [
     subscribers: 1280, agentCount: 4,
     tags: ["metaphysics", "chinese-culture", "fortune", "bazi"], verified: true,
   },
-];
+  // ─── Ryan's Ecosystem ────────────────────────────────────────
+  {
+    id: "c27", name: "AlphaArena", handle: "alphaarena",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=alphaarena",
+    bio: "Multi-asset AI trading competition platform. Pit your trading bots against each other in real-time. Backtesting, scoring, leaderboards. Built in Hong Kong.",
+    subscribers: 890, agentCount: 3,
+    tags: ["trading", "competition", "quant", "hong-kong"], verified: true,
+  },
+  {
+    id: "c28", name: "AgentPress", handle: "agentpress",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=agentpress",
+    bio: "Medium-like knowledge platform for humans and AI agents. Publish, syndicate, and consume dev content via API. Part of the OpenClaw ecosystem.",
+    subscribers: 640, agentCount: 2,
+    tags: ["content", "knowledge", "publishing", "agents"], verified: true,
+  },
+  {
+    id: "c29", name: "InsiderScope", handle: "insiderscope",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=insiderscope",
+    bio: "Track US Congress trades (STOCK Act), corporate insider trades (SEC Form 4), and HK disclosure of interests (HKEX DION). Follow the smart money.",
+    subscribers: 2340, agentCount: 2,
+    tags: ["finance", "insider-trading", "congress", "hong-kong"], verified: true,
+  },
+  // ─── Curated Open-Source Projects (Asian Devs) ─────────────
+  {
+    id: "c30", name: "Bill Chan", handle: "billpwchan",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=billchan",
+    bio: "Hong Kong-based quant developer. futu_algo — algorithmic trading system for Futu/Moomoo (HK & US stocks). Open-source, Python, 500+ GitHub stars.",
+    subscribers: 780, agentCount: 1,
+    tags: ["quant", "trading", "hong-kong", "futu"], verified: false,
+  },
+  {
+    id: "c31", name: "UltraLab Taiwan", handle: "ultracreation",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=ultralab",
+    bio: "台灣獨立開發者。MindThread SaaS、AI Agent Fleet (4 agents on Gemini 2.5 Flash)、IG Reel 自動發布。Solo builder shipping fast.",
+    subscribers: 560, agentCount: 2,
+    tags: ["taiwan", "saas", "automation", "gemini"], verified: false,
+  },
+  {
+    id: "c32", name: "FutuBot", handle: "futubot",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=futubot",
+    bio: "自動化港股美股交易機器人。Futu OpenD API integration for automated stock trading in HK and US markets. By quincylin1.",
+    subscribers: 420, agentCount: 1,
+    tags: ["trading", "futu", "automation", "hong-kong"], verified: false,
+  },
+  {
+    id: "c33", name: "Miyabi AI", handle: "miyabiai",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=miyabi",
+    bio: "日本発のAIエージェント開発者。Building AI agents for Japanese enterprise workflows. 日本語ネイティブのAIツール。",
+    subscribers: 340, agentCount: 1,
+    tags: ["japan", "enterprise", "japanese", "workflow"], verified: false,
+  },
+  {
+    id: "c34", name: "Geonhee Kim", handle: "heyggun",
+    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=geonhee",
+    bio: "한국 AI 개발자. Building Korean-language AI tools and agents. Open-source contributor. 한국어 AI 에이전트 전문.",
+    subscribers: 290, agentCount: 1,
+    tags: ["korea", "korean-nlp", "open-source", "agents"], verified: false,
+  },
+]
 
 const SEED_AGENTS = [
   {
@@ -1215,7 +1273,100 @@ const SEED_AGENTS = [
     tags: ["crypto", "fortune", "五行", "defi"], stars: 342, downloads: 2100,
     apiEndpoint: "https://heartai.zeabur.app/api/v1/crypto-fortune", status: "active", featured: false,
   },
-];
+  // ─── AlphaArena Products ────────────────────────────────────
+  {
+    id: "a35", creatorId: "c27", name: "AlphaArena Trading Competition API",
+    description: "Host AI trading competitions. Multi-asset backtesting, real-time scoring, ELO-style leaderboards. Pit your bots against the market and each other.",
+    longDescription: "A platform for running AI trading competitions across crypto, stocks, and forex. Features include multi-strategy backtesting with historical data, real-time PnL tracking, risk-adjusted scoring (Sharpe, Sortino, max drawdown), ELO-style ranking system, and tournament brackets. Built for both individual traders and teams. API-first design lets any bot participate.",
+    category: "api", pricing: "subscription", price: 2900, currency: "USD",
+    tags: ["trading", "competition", "backtesting", "leaderboard"], stars: 567, downloads: 4200,
+    apiEndpoint: null, status: "beta", featured: true,
+  },
+  {
+    id: "a36", creatorId: "c27", name: "Quant Backtest Engine",
+    description: "高性能回測引擎。MACD、VIX 相關性、配對交易、動量評分、風險評估。支持 Binance、OKX、Bybit 歷史數據。",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["backtesting", "quant", "macd", "risk"], stars: 234, downloads: 1800,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a37", creatorId: "c27", name: "Congress Trades Tracker",
+    description: "Track and analyze US congressional stock trades in real-time. STOCK Act data, sentiment scoring, copycat strategy signals.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["congress", "insider-trading", "stock-act", "signals"], stars: 345, downloads: 2600,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // ─── AgentPress Products ──────────────────────────────────
+  {
+    id: "a38", creatorId: "c28", name: "AgentPress Content API",
+    description: "Medium-like content publishing API for AI agents. Write, publish, syndicate articles programmatically. RSS-out, Markdown support, agent authorship.",
+    longDescription: "A headless CMS designed for both humans and AI agents. Agents can publish articles, tutorials, and analysis via REST API. Supports Markdown, code blocks, image embeds, tagging, and content syndication. Built for the agent economy — content created by agents, consumed by both humans and other agents.",
+    category: "api", pricing: "free", price: null, currency: "USD",
+    tags: ["content", "publishing", "cms", "api"], stars: 189, downloads: 980,
+    apiEndpoint: null, status: "beta", featured: false,
+  },
+  {
+    id: "a39", creatorId: "c28", name: "Knowledge Graph Agent",
+    description: "AI agent that builds a knowledge graph from your content. Auto-links related articles, extracts entities, generates recommendations.",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["knowledge-graph", "recommendations", "nlp"], stars: 145, downloads: 720,
+    apiEndpoint: null, status: "beta", featured: false,
+  },
+  // ─── InsiderScope Products ────────────────────────────────
+  {
+    id: "a40", creatorId: "c29", name: "InsiderScope Dashboard",
+    description: "三合一內幕交易追蹤器：美國國會交易 (STOCK Act)、企業內部交易 (SEC Form 4)、香港權益披露 (HKEX DION)。Follow the smart money.",
+    longDescription: "Full-stack dashboard tracking insider trades across three jurisdictions. US Congress trades from STOCK Act filings, US corporate insider trades from SEC Form 4, and Hong Kong disclosure of interests from HKEX. Features real-time alerts, historical analysis, sector heatmaps, and trade clustering. The only tool covering both US and HK insider activity.",
+    category: "tool", pricing: "subscription", price: 1900, currency: "USD",
+    tags: ["insider-trading", "congress", "hkex", "sec"], stars: 678, downloads: 5400,
+    apiEndpoint: null, status: "active", featured: true,
+  },
+  {
+    id: "a41", creatorId: "c29", name: "Smart Money Alerts API",
+    description: "Real-time alerts when Congress members or corporate insiders make significant trades. Webhook + email notifications. Covers US + HK markets.",
+    longDescription: null, category: "api", pricing: "usage", price: 50, currency: "USD",
+    tags: ["alerts", "insider", "webhook", "real-time"], stars: 432, downloads: 3100,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  // ─── Curated Open-Source (Free) ───────────────────────────
+  {
+    id: "a42", creatorId: "c30", name: "futu_algo 港股量化",
+    description: "Open-source algorithmic trading system for Futu/Moomoo. Supports HK & US stocks. Technical indicators, automated execution, portfolio management.",
+    longDescription: "A Python-based algorithmic trading framework built on Futu OpenD API. Supports real-time market data, technical analysis (MACD, RSI, Bollinger Bands), automated order execution, and portfolio management for both Hong Kong and US stock markets. 500+ GitHub stars. Open-source under MIT license.",
+    category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["futu", "trading", "hong-kong", "open-source"], stars: 520, downloads: 3800,
+    apiEndpoint: "https://github.com/billpwchan/futu_algo", status: "active", featured: false,
+  },
+  {
+    id: "a43", creatorId: "c31", name: "AI Agent Fleet",
+    description: "4 個 AI Agent 跑在 Gemini 2.5 Flash 上。PPC 投票分析、內容自動化、安全掃描。台灣獨立開發者的 Agent 軍團。",
+    longDescription: "A suite of 4 specialized AI agents built on Google Gemini 2.5 Flash. Includes PPC vote analysis agent, content automation agent, IG Reel auto-publisher, and UltraProbe security scanner. All built by a solo Taiwanese developer shipping at incredible speed.",
+    category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["gemini", "automation", "taiwan", "multi-agent"], stars: 210, downloads: 1400,
+    apiEndpoint: "https://ultralab.tw", status: "active", featured: false,
+  },
+  {
+    id: "a44", creatorId: "c32", name: "FutuBot 自動交易",
+    description: "自動化富途牛牛交易機器人。Futu OpenD API 串接，支持港股美股自動下單、策略回測、倉位管理。",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["futu", "moomoo", "trading", "automation"], stars: 180, downloads: 1200,
+    apiEndpoint: "https://github.com/quincylin1/futubot", status: "active", featured: false,
+  },
+  {
+    id: "a45", creatorId: "c33", name: "Miyabi Workflow Agent",
+    description: "日本企業向けAIワークフローエージェント。Japanese enterprise workflow automation agent. ドキュメント処理、メール分類、タスク管理。",
+    longDescription: null, category: "agent", pricing: "free", price: null, currency: "USD",
+    tags: ["japan", "workflow", "enterprise", "japanese"], stars: 156, downloads: 890,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+  {
+    id: "a46", creatorId: "c34", name: "한국어 AI Agent Kit",
+    description: "한국어 AI 에이전트 개발 키트. Korean-language AI agent development toolkit. 한국어 NLP, 감정분석, 대화형 AI.",
+    longDescription: null, category: "tool", pricing: "free", price: null, currency: "USD",
+    tags: ["korean", "nlp", "toolkit", "open-source"], stars: 134, downloads: 780,
+    apiEndpoint: null, status: "active", featured: false,
+  },
+]
 
 const SEED_POSTS = [
   {
@@ -1366,7 +1517,21 @@ const SEED_POSTS = [
     visibility: "public", tags: ["search", "korean", "naver"],
     likes: 934, commentCount: 67, createdAt: "2026-03-07T03:00:00Z", featured: false,
   },
-];
+  {
+    id: "p22", creatorId: "c27", title: "Why I'm Building a Trading Competition for AI Agents",
+    body: `# Why I'm Building a Trading Competition for AI Agents\n\nEvery quant developer backtests in isolation. You optimize your Sharpe ratio, celebrate your 47% annual return in backtesting, then get crushed by reality. Why? Because you never competed against other strategies in real-time.\n\n## The Problem\n\n- Backtesting is lonely — no adversarial pressure\n- Paper trading doesn't simulate competition for liquidity\n- Existing competitions (Kaggle, Numerai) are about predictions, not execution\n\n## AlphaArena's Approach\n\n1. **Real-time competition** — bots trade simultaneously on the same orderbook\n2. **Multi-asset** — crypto, US stocks, HK stocks, forex\n3. **Risk-adjusted scoring** — Sharpe, Sortino, max drawdown all factor in\n4. **ELO ranking** — like chess, your rank adjusts based on who you beat\n\n## Why Hong Kong?\n\nHK is uniquely positioned — timezone overlap with both Asian and US markets, no capital gains tax, and a growing quant community. AlphaArena is built for this ecosystem.\n\n---\n\nAlphaArena is in beta on AgentForge. Join the first tournament.`,
+    excerpt: "Every quant developer backtests in isolation. You never competed against other strategies in real-time...",
+    visibility: "public", tags: ["trading", "competition", "quant"],
+    likes: 234, commentCount: 19, createdAt: "2026-03-17T06:00:00Z", featured: false,
+  },
+  {
+    id: "p23", creatorId: "c29", title: "跟蹤聰明錢：美國國會議員的股票交易告訴你什麼",
+    body: `# 跟蹤聰明錢\n\n2012 年美國通過了 STOCK Act，要求國會議員在 45 天內公開他們的股票交易。但直到最近，這些數據才真正被系統化追蹤。\n\n## 為什麼追蹤國會交易？\n\n議員們有權接觸非公開的政策資訊。雖然法律禁止內幕交易，但研究表明國會議員的股票回報率持續跑贏大盤 5-12%。\n\n## InsiderScope 追蹤什麼\n\n### 美國國會 (STOCK Act)\n- 所有參議員和眾議員的交易\n- 買入/賣出時間、金額、持倉\n- 按板塊、黨派、委員會分析\n\n### 企業內部人 (SEC Form 4)\n- CEO/CFO/Board 的買入賣出\n- 異常大額交易標記\n- 歷史上內部人買入是看漲信號\n\n### 香港權益披露 (HKEX DION)\n- 大股東持倉變動\n- 增持/減持趨勢追蹤\n- 配合公司公告分析\n\n## 真實案例\n\n2025 年某參議員在 AI 監管法案公佈前兩週大量買入 NVIDIA。InsiderScope 用戶在公開報導前 3 天收到了警報。\n\n---\n\nInsiderScope 已在 AgentForge 上線。`,
+    excerpt: "2012 年美國通過了 STOCK Act，要求國會議員在 45 天內公開他們的股票交易...",
+    visibility: "public", tags: ["insider-trading", "congress", "hong-kong"],
+    likes: 567, commentCount: 42, createdAt: "2026-03-16T08:00:00Z", featured: true,
+  },
+  ]
 
 // ─── Export ──────────────────────────────────────────────────
 export const storage: IStorage = db ? new PgStorage() : new MemStorage();
