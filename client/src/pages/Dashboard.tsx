@@ -39,7 +39,7 @@ import {
   Pencil, Trash2, ExternalLink, PenSquare, Loader2,
   X, Rocket, CreditCard, TrendingUp, TrendingDown,
   MessageSquare, ArrowUpDown, ChevronDown, ChevronUp,
-  Wrench, FileText, Globe, BarChart3, Trophy,
+  Wrench, FileText, Globe, BarChart3, Trophy, Rss, Github, Rss, Github,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
@@ -292,6 +292,13 @@ export default function Dashboard() {
       return res.json();
     },
     enabled: !!user && !!creatorProfile && !!stripeStatus?.onboarded,
+  });
+
+  const { data: contentSources } = useQuery<{
+    id: string; name: string; url: string; type: string;
+    language: string; curatorId: string; category: string; active: boolean;
+  }[]>({
+    queryKey: ["/api/content-sources"],
   });
 
   // ─── Mutations ───────────────────────────────────────────
@@ -846,6 +853,61 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* ─── Content Sources ─────────────────────────────────── */}
+      {contentSources && contentSources.length > 0 && (
+        <div className="mt-8" data-testid="section-content-sources">
+          <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Rss size={14} className="text-muted-foreground" />
+            Content Sources
+          </h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            RSS feeds and APIs powering the curated content bots.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {contentSources.map((src) => {
+              const langLabel = src.language === "en" ? "EN" : src.language === "zh" ? "中文" : "日本語";
+              const langColor = src.language === "en" ? "bg-blue-500/10 text-blue-600" : src.language === "zh" ? "bg-red-500/10 text-red-600" : "bg-purple-500/10 text-purple-600";
+              const TypeIcon = src.type === "github" ? Github : src.type === "rss" ? Rss : Globe;
+              const curatorNames: Record<string, string> = {
+                c197: "AI Daily 日報", c198: "Web3 Wire", c199: "DevTools Radar",
+                c200: "Asia Tech Express", c201: "Research Digest", c202: "Agent Economy",
+              };
+              return (
+                <div
+                  key={src.id}
+                  className="rounded-lg border border-border bg-card p-3.5 flex items-start gap-3"
+                  data-testid={`card-source-${src.id}`}
+                >
+                  <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center shrink-0 text-muted-foreground">
+                    <TypeIcon size={14} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-semibold text-foreground truncate">{src.name}</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${langColor}`}>
+                        {langLabel}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground truncate mb-1.5">
+                      {curatorNames[src.curatorId] ?? src.curatorId}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[9px] h-4 px-1.5">{src.category}</Badge>
+                      {src.active && (
+                        <span className="flex items-center gap-1 text-[9px] text-emerald-500">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Active
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ─── Add/Edit Agent Dialog ──────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={(open) => {

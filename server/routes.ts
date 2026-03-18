@@ -6,6 +6,7 @@ import pg from "pg";
 import crypto from "crypto";
 import Stripe from "stripe";
 import { storage } from "./storage";
+import { CONTENT_SOURCES } from "./content-sources";
 import { registerSchema, loginSchema, insertAgentSchema, type SafeUser } from "@shared/schema";
 import bcrypt from "bcryptjs";
 
@@ -1155,6 +1156,11 @@ export async function registerRoutes(
     const revoked = await storage.revokeApiKey(req.params.id, req.session.userId!);
     if (!revoked) return res.status(404).json({ message: "Key not found" });
     res.json({ success: true });
+  });
+
+  // ─── Content Sources ────────────────────────────────────────
+  app.get("/api/content-sources", (_req, res) => {
+    res.json(CONTENT_SOURCES.filter(s => s.active));
   });
 
   return httpServer;
