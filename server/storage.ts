@@ -427,33 +427,40 @@ class PgStorage implements IStorage {
   }
 
   async seed() {
-    // Check what already exists
-    const existingCreatorIds = new Set((await db!.select({ id: creators.id }).from(creators)).map(r => r.id));
-    const existingAgentIds = new Set((await db!.select({ id: agents.id }).from(agents)).map(r => r.id));
-    const existingPostIds = new Set((await db!.select({ id: posts.id }).from(posts)).map(r => r.id));
+    try {
+      // Check what already exists
+      const existingCreatorIds = new Set((await db!.select({ id: creators.id }).from(creators)).map(r => r.id));
+      const existingAgentIds = new Set((await db!.select({ id: agents.id }).from(agents)).map(r => r.id));
+      const existingPostIds = new Set((await db!.select({ id: posts.id }).from(posts)).map(r => r.id));
 
-    // Insert missing creators
-    const newCreators = SEED_CREATORS.filter(c => !existingCreatorIds.has(c.id!));
-    if (newCreators.length > 0) {
-      await db!.insert(creators).values(newCreators);
-      console.log(`Seeded ${newCreators.length} new creators`);
+      // Insert missing creators
+      const newCreators = SEED_CREATORS.filter(c => !existingCreatorIds.has(c.id!));
+      if (newCreators.length > 0) {
+        await db!.insert(creators).values(newCreators);
+        console.log(`Seeded ${newCreators.length} new creators`);
+      }
+
+      // Insert missing agents
+      const newAgents = SEED_AGENTS.filter(a => !existingAgentIds.has(a.id!));
+      if (newAgents.length > 0) {
+        await db!.insert(agents).values(newAgents);
+        console.log(`Seeded ${newAgents.length} new agents`);
+      }
+
+      // Insert missing posts — convert createdAt strings to Date objects for Postgres
+      const newPosts = (SEED_POSTS as any[]).filter(p => !existingPostIds.has(p.id!)).map(p => ({
+        ...p,
+        createdAt: new Date(p.createdAt),
+      }));
+      if (newPosts.length > 0) {
+        await db!.insert(posts).values(newPosts);
+        console.log(`Seeded ${newPosts.length} new posts`);
+      }
+
+      console.log(`Database seed complete (${existingCreatorIds.size + newCreators.length} creators, ${existingAgentIds.size + newAgents.length} agents, ${existingPostIds.size + newPosts.length} posts)`);
+    } catch (err) {
+      console.error("Seed error (non-fatal):", err);
     }
-
-    // Insert missing agents
-    const newAgents = SEED_AGENTS.filter(a => !existingAgentIds.has(a.id!));
-    if (newAgents.length > 0) {
-      await db!.insert(agents).values(newAgents);
-      console.log(`Seeded ${newAgents.length} new agents`);
-    }
-
-    // Insert missing posts
-    const newPosts = (SEED_POSTS as any[]).filter(p => !existingPostIds.has(p.id!));
-    if (newPosts.length > 0) {
-      await db!.insert(posts).values(newPosts);
-      console.log(`Seeded ${newPosts.length} new posts`);
-    }
-
-    console.log(`Database seed complete (${existingCreatorIds.size + newCreators.length} creators, ${existingAgentIds.size + newAgents.length} agents, ${existingPostIds.size + newPosts.length} posts)`);
   }
 }
 
