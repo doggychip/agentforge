@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
-  ArrowLeft, Shield, Bot, Wrench, FileText, Globe,
+  ArrowLeft, Shield, Bot, Wrench, FileText, Globe, ExternalLink, Github,
   Star, Download, Users, Heart, MessageCircle, Clock, Bell, BellOff, Lock, CheckCircle,
 } from "lucide-react";
 
@@ -107,7 +107,33 @@ export default function CreatorDetail() {
 
   const totalDownloads = agents.reduce((sum, a) => sum + a.downloads, 0);
   const totalStars = agents.reduce((sum, a) => sum + a.stars, 0);
-  const avgRating = agents.length > 0 ? (totalStars / Math.max(agents.length, 1)) : 0;
+
+  // Derive GitHub / website links from agents' apiEndpoints
+  const externalLinks = (() => {
+    const links: { url: string; label: string; isGithub: boolean }[] = [];
+    const seen = new Set<string>();
+    for (const a of agents) {
+      if (!a.apiEndpoint) continue;
+      try {
+        const u = new URL(a.apiEndpoint);
+        const origin = u.origin + u.pathname.split("/").slice(0, 2).join("/");
+        if (seen.has(origin)) continue;
+        seen.add(origin);
+        const isGithub = u.hostname === "github.com";
+        links.push({ url: a.apiEndpoint, label: isGithub ? u.pathname.slice(1) : u.hostname, isGithub });
+      } catch { /* skip invalid URLs */ }
+    }
+    return links.slice(0, 3);
+  })();
+
+  // Category distribution
+  const categoryDistribution = (() => {
+    const counts: Record<string, number> = {};
+    for (const a of agents) {
+      counts[a.category] = (counts[a.category] || 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  })();
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -122,7 +148,7 @@ export default function CreatorDetail() {
           <img
             src={creator.avatar}
             alt={creator.name}
-            className="w-16 h-16 rounded-full bg-muted shrink-0 ring-2 ring-background shadow-sm"
+            className="w-20 h-20 rounded-full bg-muted shrink-0 ring-2 ring-background shadow-sm"
           />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
@@ -145,6 +171,26 @@ export default function CreatorDetail() {
                 </Badge>
               ))}
             </div>
+
+            {/* GitHub / external links */}
+            {externalLinks.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3" data-testid="section-external-links">
+                {externalLinks.map((link) => (
+                  <a
+                    key={link.url}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors no-underline"
+                    data-testid={`link-external-${link.label}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {link.isGithub ? <Github size={12} /> : <ExternalLink size={12} />}
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Subscribe Button — bigger and more prominent on mobile */}
@@ -190,10 +236,26 @@ export default function CreatorDetail() {
             <div className="flex items-center justify-center gap-1.5 mb-1 text-muted-foreground">
               <Star size={13} />
             </div>
-            <p className="text-lg font-bold text-foreground">{avgRating > 0 ? avgRating.toFixed(1) : "--"}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Rating</p>
+            <p className="text-lg font-bold text-foreground">{formatNumber(totalStars)}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Stars</p>
           </div>
         </div>
+
+        {/* Category distribution */}
+        {categoryDistribution.length > 1 && (
+          <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border/50" data-testid="section-category-distribution">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider shrink-0">Builds:</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              {categoryDistribution.map(([cat, count]) => (
+                <span key={cat} className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  {categoryIcons[cat]}
+                  <span className="capitalize">{cat}</span>
+                  <span className="text-[10px] font-medium text-foreground">({count})</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tabs: Agents + Posts */}

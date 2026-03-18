@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Agent, Creator, Review } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
-  Star, Download, Bot, Wrench, FileText, Globe, ArrowLeft,
+  Star, Download, Bot, Wrench, FileText, Globe, ArrowLeft, Share2, X as XIcon,
   Shield, Copy, Code, Cpu, MessageSquare, CheckCircle, Terminal,
 } from "lucide-react";
 
@@ -68,6 +68,16 @@ export default function AgentDetail() {
   const { user } = useAuth();
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewBody, setReviewBody] = useState("");
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  // Parse checkout status from hash URL: /#/agents/a1?checkout=success
+  const checkoutStatus = useMemo(() => {
+    const hash = window.location.hash;
+    const qIdx = hash.indexOf("?");
+    if (qIdx === -1) return null;
+    const params = new URLSearchParams(hash.slice(qIdx));
+    return params.get("checkout") as "success" | "cancel" | null;
+  }, []);
 
   const { data: agentData, isLoading } = useQuery<Agent & { creator?: Creator }>({
     queryKey: ["/api/agents", id],
@@ -190,6 +200,36 @@ export default function AgentDetail() {
         <ArrowLeft size={14} /> Back to agents
       </Link>
 
+      {/* Checkout success/cancel banner */}
+      {checkoutStatus && !bannerDismissed && (
+        <div
+          className={`rounded-lg border p-4 mb-6 flex items-center justify-between ${
+            checkoutStatus === "success"
+              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
+              : "bg-yellow-500/10 border-yellow-500/30 text-yellow-700 dark:text-yellow-400"
+          }`}
+          data-testid={`banner-checkout-${checkoutStatus}`}
+        >
+          <div className="flex items-center gap-2">
+            {checkoutStatus === "success" ? <CheckCircle size={16} /> : <XIcon size={16} />}
+            <span className="text-sm font-medium">
+              {checkoutStatus === "success"
+                ? `Payment successful! You now have access to ${agent.name}.`
+                : "Payment was cancelled. You can try again anytime."}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0"
+            onClick={() => setBannerDismissed(true)}
+            data-testid="button-dismiss-banner"
+          >
+            <XIcon size={14} />
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-6 mb-8">
         <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 text-primary">
@@ -253,21 +293,45 @@ export default function AgentDetail() {
                 {agent.pricing === "free" ? "Open source" : agent.pricing === "usage" ? "Per API call" : "Per month"}
               </p>
             </div>
-            <Button
-              className="w-full h-9 text-sm font-medium"
-              onClick={() => subscribeMutation.mutate()}
-              disabled={subscribeMutation.isPending || subStatus?.subscribed}
-              data-testid="button-subscribe"
-            >
-              {subscribeMutation.isPending ? "..." : (subStatus?.subscribed || subscribeMutation.isSuccess) ? (
-                <span className="flex items-center gap-1.5"><CheckCircle size={14} /> Subscribed</span>
-              ) : agent.pricing === "free" ? "Install" : "Subscribe"}
-            </Button>
+
+            {/* Installed state for free agents */}
+            {(subStatus?.subscribed || subscribeMutation.isSuccess || checkoutStatus === "success") && agent.pricing === "free" ? (
+              <div className="flex items-center justify-center gap-2 h-9 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm font-medium" data-testid="badge-installed">
+                <CheckCircle size={15} />
+                Installed
+              </div>
+            ) : (
+              <Button
+                className="w-full h-9 text-sm font-medium"
+                onClick={() => subscribeMutation.mutate()}
+                disabled={subscribeMutation.isPending || subStatus?.subscribed}
+                data-testid="button-subscribe"
+              >
+                {subscribeMutation.isPending ? "..." : (subStatus?.subscribed || subscribeMutation.isSuccess || checkoutStatus === "success") ? (
+                  <span className="flex items-center gap-1.5"><CheckCircle size={14} /> Subscribed</span>
+                ) : agent.pricing === "free" ? "Install" : "Subscribe"}
+              </Button>
+            )}
+
             {agent.apiEndpoint && (
               <Button variant="outline" className="w-full h-8 text-xs gap-1.5" data-testid="button-api-docs">
                 <Code size={12} /> API Docs
               </Button>
             )}
+
+            {/* Share button */}
+            <Button
+              variant="outline"
+              className="w-full h-8 text-xs gap-1.5"
+              onClick={() => {
+                const url = window.location.origin + `/agents/${agent.id}`;
+                navigator.clipboard.writeText(url);
+                toast({ title: "Link copied", description: "Agent URL copied to clipboard" });
+              }}
+              data-testid="button-share"
+            >
+              <Share2 size={12} /> Share
+            </Button>
           </div>
         </div>
       </div>
