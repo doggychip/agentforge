@@ -9,7 +9,7 @@ import {
   Search, Star, Download, ArrowRight, Bot, Wrench, FileText, Globe,
   Shield, Code, Database, Cpu, Terminal, Zap, ChevronRight, Heart, MessageCircle, Clock
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { apiRequest } from "@/lib/queryClient";
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -214,6 +214,46 @@ export default function Home() {
     ? searchResults.agents.length + searchResults.creators.length + searchResults.posts.length
     : 0;
 
+  // Instant local search from already-loaded data
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const instantResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || q.length < 2) return { agents: [], creators: [] };
+    const matchedAgents = (allAgents ?? [])
+      .filter(
+        (a) =>
+          a.name.toLowerCase().includes(q) ||
+          a.description.toLowerCase().includes(q) ||
+          a.tags.some((t) => t.toLowerCase().includes(q)),
+      )
+      .slice(0, 5);
+    const matchedCreators = (creators ?? [])
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.handle.toLowerCase().includes(q) ||
+          c.bio.toLowerCase().includes(q),
+      )
+      .slice(0, 3);
+    return { agents: matchedAgents, creators: matchedCreators };
+  }, [searchQuery, allAgents, creators]);
+
+  const hasInstantResults = instantResults.agents.length > 0 || instantResults.creators.length > 0;
+  const showDropdown = dropdownOpen && searchQuery.trim().length >= 2 && hasInstantResults && !debouncedQuery;
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       {/* Hero */}
@@ -235,15 +275,89 @@ export default function Home() {
         </div>
 
         {/* Search */}
-        <div className="relative max-w-md mt-5">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative max-w-md mt-5" ref={dropdownRef}>
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
           <Input
-            placeholder="Search agents, tools, content..."
+            placeholder="Search agents, tools, creators..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setDropdownOpen(true);
+            }}
+            onFocus={() => setDropdownOpen(true)}
             className="pl-9 h-9 text-sm bg-card border-border"
             data-testid="input-search"
           />
+
+          {/* Instant results dropdown */}
+          {showDropdown && (
+            <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-border bg-card shadow-lg z-50 max-h-80 overflow-y-auto" data-testid="search-dropdown">
+              {instantResults.agents.length > 0 && (
+                <div>
+                  <div className="px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider bg-muted/30">
+                    Agents & Tools
+                  </div>
+                  {instantResults.agents.map((agent) => {
+                    const creator = creatorsMap.get(agent.creatorId);
+                    return (
+                      <Link
+                        key={agent.id}
+                        href={`/agents/${agent.id}`}
+                        className="flex items-center gap-2.5 px-3 py-2 hover:bg-muted/50 transition-colors no-underline"
+                        onClick={() => setDropdownOpen(false)}
+                        data-testid={`dropdown-agent-${agent.id}`}
+                      >
+                        <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                          {categoryIcons[agent.category]}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-foreground truncate">{agent.name}</p>
+                          {creator && (
+                            <p className="text-[10px] text-muted-foreground truncate">by {creator.name}</p>
+                          )}
+                        </div>
+                        <span className={`text-[10px] font-semibold shrink-0 ${agent.pricing === "free" ? "text-emerald-500" : "text-primary"}`}>
+                          {formatPrice(agent.price, agent.pricing)}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+              {instantResults.creators.length > 0 && (
+                <div>
+                  <div className="px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider bg-muted/30 border-t border-border">
+                    Creators
+                  </div>
+                  {instantResults.creators.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/creators/${c.id}`}
+                      className="flex items-center gap-2.5 px-3 py-2 hover:bg-muted/50 transition-colors no-underline"
+                      onClick={() => setDropdownOpen(false)}
+                      data-testid={`dropdown-creator-${c.id}`}
+                    >
+                      <img
+                        src={c.avatar}
+                        alt={c.name}
+                        className="w-7 h-7 rounded-full bg-muted shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1">
+                          <p className="text-xs font-medium text-foreground truncate">{c.name}</p>
+                          {c.verified && <Shield size={10} className="text-primary shrink-0" />}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground truncate">@{c.handle}</p>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {formatNumber(c.subscribers)} subs
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
 

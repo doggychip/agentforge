@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import type { Agent, Creator } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -12,7 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Star, Download, Bot, Wrench, FileText, Globe, ArrowUpDown, SlidersHorizontal, X as XIcon
+  Star, Download, Bot, Wrench, FileText, Globe, ArrowUpDown, SlidersHorizontal,
+  X as XIcon, Search,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -42,17 +44,48 @@ function formatNumber(n: number) {
 }
 
 const categories = ["all", "agent", "tool", "content", "api"];
-const pricingOptions = ["all", "free", "subscription", "usage"];
-const sortOptions = [
-  { value: "popular", label: "Most Popular" },
-  { value: "stars", label: "Top Rated" },
-  { value: "downloads", label: "Most Downloads" },
-  { value: "name", label: "Name A-Z" },
+
+const languageFilters = [
+  { value: "all", label: "All" },
+  { value: "english", label: "English" },
+  { value: "chinese", label: "中文" },
+  { value: "japanese", label: "日本語" },
+  { value: "korean", label: "한국어" },
 ];
 
+const sortOptions = [
+  { value: "popular", label: "Popular" },
+  { value: "downloads", label: "Downloads" },
+  { value: "price-asc", label: "Price: Low → High" },
+  { value: "newest", label: "Newest" },
+];
+
+function isFreeAgent(agent: Agent): boolean {
+  if (agent.pricing === "free") return true;
+  if (!agent.price || agent.price === 0) return true;
+  const lowerTags = agent.tags.map((t) => t.toLowerCase());
+  return lowerTags.some((t) => t.includes("open-source") || t.includes("open source"));
+}
+
+function matchesLanguage(agent: Agent, lang: string): boolean {
+  const check = (s: string) => {
+    const l = s.toLowerCase();
+    switch (lang) {
+      case "chinese": return l.includes("chinese") || l.includes("中文");
+      case "japanese": return l.includes("japanese") || l.includes("日本語");
+      case "korean": return l.includes("korean") || l.includes("한국어");
+      case "english": return l.includes("english");
+      default: return false;
+    }
+  };
+  return agent.tags.some(check) || check(agent.name) || check(agent.description);
+}
+
 export default function Agents() {
+  const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
-  const [activePricing, setActivePricing] = useState("all");
+  const [activeLanguage, setActiveLanguage] = useState("all");
+  const [pricingFilter, setPricingFilter] = useState<"all" | "free" | "paid">("all");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState("popular");
 
@@ -64,9 +97,11 @@ export default function Agents() {
     queryKey: ["/api/creators"],
   });
 
-  const creatorsMap = new Map(creators?.map((c) => [c.id, c]) || []);
+  const creatorsMap = useMemo(
+    () => new Map(creators?.map((c) => [c.id, c]) || []),
+    [creators],
+  );
 
-  // Extract all unique tags from agents
   const allTags = useMemo(() => {
     if (!agents) return [];
     const tagSet = new Set<string>();
@@ -74,43 +109,65 @@ export default function Agents() {
     return Array.from(tagSet).sort();
   }, [agents]);
 
-  // Filter and sort
   const filtered = useMemo(() => {
     let result = agents ?? [];
+    const q = searchQuery.trim().toLowerCase();
 
-    // Category filter
+    // Search by name, description, AND creator name
+    if (q) {
+      result = result.filter((a) => {
+        const creator = creatorsMap.get(a.creatorId);
+        return (
+          a.name.toLowerCase().includes(q) ||
+          a.description.toLowerCase().includes(q) ||
+          a.tags.some((t) => t.toLowerCase().includes(q)) ||
+          (creator && creator.name.toLowerCase().includes(q))
+        );
+      });
+    }
+
     if (activeCategory !== "all") {
       result = result.filter((a) => a.category === activeCategory);
     }
 
-    // Pricing filter
-    if (activePricing !== "all") {
-      result = result.filter((a) => a.pricing === activePricing);
+    if (activeLanguage !== "all") {
+      result = result.filter((a) => matchesLanguage(a, activeLanguage));
     }
 
-    // Tag filter
+    if (pricingFilter === "free") {
+      result = result.filter(isFreeAgent);
+    } else if (pricingFilter === "paid") {
+      result = result.filter((a) => !isFreeAgent(a));
+    }
+
     if (activeTag) {
       result = result.filter((a) => a.tags.includes(activeTag));
     }
 
-    // Sort
     result = [...result].sort((a, b) => {
       switch (sortBy) {
-        case "stars": return b.stars - a.stars;
         case "downloads": return b.downloads - a.downloads;
-        case "name": return a.name.localeCompare(b.name);
+        case "price-asc": return (a.price ?? 0) - (b.price ?? 0);
+        case "newest": return b.id.localeCompare(a.id);
         default: return (b.stars + b.downloads) - (a.stars + a.downloads);
       }
     });
 
     return result;
-  }, [agents, activeCategory, activePricing, activeTag, sortBy]);
+  }, [agents, searchQuery, activeCategory, activeLanguage, pricingFilter, activeTag, sortBy, creatorsMap]);
 
-  const activeFilterCount = (activeCategory !== "all" ? 1 : 0) + (activePricing !== "all" ? 1 : 0) + (activeTag ? 1 : 0);
+  const activeFilterCount =
+    (activeCategory !== "all" ? 1 : 0) +
+    (activeLanguage !== "all" ? 1 : 0) +
+    (pricingFilter !== "all" ? 1 : 0) +
+    (activeTag ? 1 : 0) +
+    (searchQuery ? 1 : 0);
 
   function clearFilters() {
+    setSearchQuery("");
     setActiveCategory("all");
-    setActivePricing("all");
+    setActiveLanguage("all");
+    setPricingFilter("all");
     setActiveTag(null);
   }
 
@@ -124,8 +181,20 @@ export default function Agents() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Search */}
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search agents, creators..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 w-[200px] pl-8 text-xs bg-card border-border"
+              data-testid="input-search-agents"
+            />
+          </div>
+          {/* Sort */}
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="h-8 w-[160px] text-xs" data-testid="select-sort">
+            <SelectTrigger className="h-8 w-[170px] text-xs" data-testid="select-sort">
               <ArrowUpDown size={13} className="mr-1.5 shrink-0" />
               <SelectValue />
             </SelectTrigger>
@@ -142,7 +211,7 @@ export default function Agents() {
 
       {/* Filter Toolbar */}
       <div className="flex flex-col gap-3 mb-6">
-        {/* Category buttons */}
+        {/* Category chips */}
         <div className="flex items-center gap-1.5 flex-wrap" data-testid="filter-categories">
           {categories.map((cat) => (
             <Button
@@ -158,19 +227,39 @@ export default function Agents() {
           ))}
         </div>
 
+        {/* Language chips */}
+        <div className="flex items-center gap-2 flex-wrap" data-testid="filter-languages">
+          <div className="flex items-center gap-1">
+            <Globe size={13} className="text-muted-foreground" />
+            <span className="text-xs text-muted-foreground font-medium">Language:</span>
+          </div>
+          {languageFilters.map((lang) => (
+            <Button
+              key={lang.value}
+              variant={activeLanguage === lang.value ? "default" : "outline"}
+              size="sm"
+              className="h-6 text-[11px] px-2.5"
+              onClick={() => setActiveLanguage(lang.value)}
+              data-testid={`button-lang-${lang.value}`}
+            >
+              {lang.label}
+            </Button>
+          ))}
+        </div>
+
         {/* Pricing + Tag row */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1">
             <SlidersHorizontal size={13} className="text-muted-foreground" />
-            <span className="text-xs text-muted-foreground font-medium">Pricing:</span>
+            <span className="text-xs text-muted-foreground font-medium">Price:</span>
           </div>
-          {pricingOptions.map((p) => (
+          {(["all", "free", "paid"] as const).map((p) => (
             <Button
               key={p}
-              variant={activePricing === p ? "default" : "outline"}
+              variant={pricingFilter === p ? "default" : "outline"}
               size="sm"
               className="h-6 text-[11px] capitalize px-2.5"
-              onClick={() => setActivePricing(p)}
+              onClick={() => setPricingFilter(p)}
               data-testid={`button-pricing-${p}`}
             >
               {p === "all" ? "Any" : p}
