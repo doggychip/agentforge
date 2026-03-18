@@ -427,53 +427,33 @@ class PgStorage implements IStorage {
   }
 
   async seed() {
-    // Upsert creators
-    const existingCreators = await db!.select().from(creators).limit(1);
-    if (existingCreators.length === 0) {
-      await db!.insert(creators).values(SEED_CREATORS);
-      console.log("Seeded creators");
-    } else {
-      // Insert any new creators not yet in DB
-      for (const c of SEED_CREATORS) {
-        const [exists] = await db!.select().from(creators).where(eq(creators.id, c.id!));
-        if (!exists) {
-          await db!.insert(creators).values(c).onConflictDoNothing();
-        }
-      }
-      console.log("Creators up-to-date");
+    // Check what already exists
+    const existingCreatorIds = new Set((await db!.select({ id: creators.id }).from(creators)).map(r => r.id));
+    const existingAgentIds = new Set((await db!.select({ id: agents.id }).from(agents)).map(r => r.id));
+    const existingPostIds = new Set((await db!.select({ id: posts.id }).from(posts)).map(r => r.id));
+
+    // Insert missing creators
+    const newCreators = SEED_CREATORS.filter(c => !existingCreatorIds.has(c.id!));
+    if (newCreators.length > 0) {
+      await db!.insert(creators).values(newCreators);
+      console.log(`Seeded ${newCreators.length} new creators`);
     }
 
-    // Upsert agents
-    const existingAgents = await db!.select().from(agents).limit(1);
-    if (existingAgents.length === 0) {
-      await db!.insert(agents).values(SEED_AGENTS);
-      console.log("Seeded agents");
-    } else {
-      for (const a of SEED_AGENTS) {
-        const [exists] = await db!.select().from(agents).where(eq(agents.id, a.id!));
-        if (!exists) {
-          await db!.insert(agents).values(a).onConflictDoNothing();
-        }
-      }
-      console.log("Agents up-to-date");
+    // Insert missing agents
+    const newAgents = SEED_AGENTS.filter(a => !existingAgentIds.has(a.id!));
+    if (newAgents.length > 0) {
+      await db!.insert(agents).values(newAgents);
+      console.log(`Seeded ${newAgents.length} new agents`);
     }
 
-    // Upsert posts
-    const existingPosts = await db!.select().from(posts).limit(1);
-    if (existingPosts.length === 0) {
-      await db!.insert(posts).values(SEED_POSTS as any);
-      console.log("Seeded posts");
-    } else {
-      for (const p of SEED_POSTS) {
-        const [exists] = await db!.select().from(posts).where(eq(posts.id, (p as any).id!));
-        if (!exists) {
-          await db!.insert(posts).values(p as any).onConflictDoNothing();
-        }
-      }
-      console.log("Posts up-to-date");
+    // Insert missing posts
+    const newPosts = (SEED_POSTS as any[]).filter(p => !existingPostIds.has(p.id!));
+    if (newPosts.length > 0) {
+      await db!.insert(posts).values(newPosts);
+      console.log(`Seeded ${newPosts.length} new posts`);
     }
 
-    console.log("Database seed complete");
+    console.log(`Database seed complete (${existingCreatorIds.size + newCreators.length} creators, ${existingAgentIds.size + newAgents.length} agents, ${existingPostIds.size + newPosts.length} posts)`);
   }
 }
 
