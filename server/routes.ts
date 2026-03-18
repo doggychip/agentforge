@@ -391,11 +391,63 @@ export async function registerRoutes(
       const totalDownloads = creatorAgents.reduce((sum, a) => sum + a.downloads, 0);
       const totalStars = creatorAgents.reduce((sum, a) => sum + a.stars, 0);
 
+      // Gather per-agent review data
+      const agentBreakdown = await Promise.all(
+        creatorAgents.map(async (a) => {
+          const { avg, count } = await storage.getAgentAverageRating(a.id);
+          return {
+            id: a.id, name: a.name, category: a.category,
+            pricing: a.pricing, price: a.price,
+            stars: a.stars, downloads: a.downloads,
+            reviewCount: count, avgRating: avg,
+          };
+        })
+      );
+
+      const totalReviews = agentBreakdown.reduce((s, a) => s + a.reviewCount, 0);
+      const avgRating = totalReviews > 0
+        ? agentBreakdown.reduce((s, a) => s + a.avgRating * a.reviewCount, 0) / totalReviews
+        : 0;
+
+      // Category distribution
+      const categoryDistribution: Record<string, number> = {};
+      for (const a of creatorAgents) {
+        categoryDistribution[a.category] = (categoryDistribution[a.category] || 0) + 1;
+      }
+
+      // Pricing distribution
+      const pricingDistribution: Record<string, number> = {};
+      for (const a of creatorAgents) {
+        pricingDistribution[a.pricing] = (pricingDistribution[a.pricing] || 0) + 1;
+      }
+
+      // Top agent by downloads
+      const topAgent = creatorAgents.length > 0
+        ? creatorAgents.reduce((best, a) => a.downloads > best.downloads ? a : best)
+        : null;
+
+      // Simulated 7-day trend data based on real totals
+      function simulateTrend(total: number): number[] {
+        const dailyAvg = Math.max(1, Math.round(total / 30));
+        return Array.from({ length: 7 }, () =>
+          Math.max(0, Math.round(dailyAvg * (0.8 + Math.random() * 0.4)))
+        );
+      }
+
       res.json({
         subscribers: creator.subscribers,
         agentCount: creatorAgents.length,
         totalDownloads,
         totalStars,
+        totalReviews,
+        avgRating: Math.round(avgRating * 10) / 10,
+        agentBreakdown,
+        categoryDistribution,
+        pricingDistribution,
+        topAgent: topAgent ? { name: topAgent.name, downloads: topAgent.downloads } : null,
+        downloadsTrend: simulateTrend(totalDownloads),
+        subscribersTrend: simulateTrend(creator.subscribers),
+        starsTrend: simulateTrend(totalStars),
       });
     } catch (error) {
       console.error("Dashboard stats error:", error);
