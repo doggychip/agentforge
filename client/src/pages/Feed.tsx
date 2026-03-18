@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import type { Post, Creator } from "@shared/schema";
-import { Heart, MessageCircle, Clock, Bookmark, TrendingUp, PenSquare, Tag, X as XIcon } from "lucide-react";
+import { Heart, MessageCircle, Clock, Lock, TrendingUp, PenSquare, Tag, X as XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,15 +19,24 @@ function timeAgo(date: string | Date) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function PostCard({ post, creators, onTagClick }: { post: Post; creators: Map<string, Creator>; onTagClick?: (tag: string) => void }) {
+function PostCard({ post, creators, onTagClick }: { post: Post & { isGated?: boolean }; creators: Map<string, Creator>; onTagClick?: (tag: string) => void }) {
   const creator = creators.get(post.creatorId);
+  const isGated = (post as Post & { isGated?: boolean }).isGated === true;
 
   return (
     <Link href={`/posts/${post.id}`} className="no-underline">
       <article
-        className="group border border-border rounded-lg p-5 hover:border-primary/30 hover:bg-muted/30 transition-all cursor-pointer"
+        className={`group border border-border rounded-lg p-5 hover:border-primary/30 hover:bg-muted/30 transition-all cursor-pointer relative overflow-hidden ${isGated ? "opacity-80" : ""}`}
         data-testid={`card-post-${post.id}`}
       >
+        {/* Gated overlay */}
+        {isGated && (
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent z-10 flex flex-col items-center justify-end pb-5" data-testid={`gated-overlay-${post.id}`}>
+            <Lock size={16} className="text-amber-500 mb-1.5" />
+            <span className="text-xs font-medium text-amber-500">Subscribe to read</span>
+          </div>
+        )}
+
         {/* Header: creator info + time */}
         <div className="flex items-center gap-3 mb-3">
           {creator && (
@@ -45,7 +54,13 @@ function PostCard({ post, creators, onTagClick }: { post: Post; creators: Map<st
               @{creator?.handle ?? "unknown"} · <Clock size={11} className="inline -mt-px" /> {timeAgo(post.createdAt)}
             </p>
           </div>
-          {post.featured && (
+          {post.visibility === "subscribers" && (
+            <Badge variant="outline" className="text-[10px] gap-1 shrink-0 text-amber-500 border-amber-500/30">
+              <Lock size={10} />
+              Subscribers
+            </Badge>
+          )}
+          {post.featured && !isGated && (
             <Badge variant="secondary" className="text-[10px] gap-1 shrink-0">
               <TrendingUp size={10} />
               Featured
@@ -92,12 +107,6 @@ function PostCard({ post, creators, onTagClick }: { post: Post; creators: Map<st
             <MessageCircle size={13} />
             {post.commentCount}
           </span>
-          {post.visibility === "subscribers" && (
-            <span className="flex items-center gap-1 ml-auto text-amber-500">
-              <Bookmark size={13} />
-              Subscribers only
-            </span>
-          )}
         </div>
       </article>
     </Link>

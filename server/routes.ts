@@ -516,7 +516,22 @@ export async function registerRoutes(
     if (req.session.userId) {
       isSubscribed = await storage.isSubscribedToCreator(req.session.userId, creator.id);
     }
-    res.json({ ...creator, agents: agentsList, posts: creatorPosts, isSubscribed });
+
+    // Gate subscriber-only posts
+    const userCreator = req.session?.userId
+      ? await storage.getCreatorByUserId(req.session.userId)
+      : null;
+    const gatedPosts = creatorPosts.map((p) => {
+      if (p.visibility === "subscribers") {
+        const isOwner = userCreator?.id === p.creatorId;
+        if (!isOwner && !isSubscribed) {
+          return { ...p, body: p.excerpt || "This content is for subscribers only.", isGated: true };
+        }
+      }
+      return { ...p, isGated: false };
+    });
+
+    res.json({ ...creator, agents: agentsList, posts: gatedPosts, isSubscribed });
   });
 
   // ─── Creator Subscriptions (follow/unfollow) ─────────────────
@@ -618,13 +633,34 @@ export async function registerRoutes(
   // ─── Posts / Feed ────────────────────────────────────────────
 
   app.get("/api/posts", async (req, res) => {
-    const { creator, limit } = req.query;
-    if (creator && typeof creator === "string") {
-      const posts = await storage.getPostsByCreator(creator);
-      return res.json(posts);
+    const { creator: creatorFilter, limit } = req.query;
+    let posts;
+    if (creatorFilter && typeof creatorFilter === "string") {
+      posts = await storage.getPostsByCreator(creatorFilter);
+    } else {
+      posts = await storage.getPosts(limit ? parseInt(limit as string, 10) : 50);
     }
-    const posts = await storage.getPosts(limit ? parseInt(limit as string, 10) : 50);
-    res.json(posts);
+
+    // Content gating: strip body from subscriber-only posts for non-subscribers
+    const subscribedCreatorIds = req.session?.userId
+      ? await storage.getUserSubscribedCreatorIds(req.session.userId)
+      : [];
+    const userCreator = req.session?.userId
+      ? await storage.getCreatorByUserId(req.session.userId)
+      : null;
+
+    const gatedPosts = posts.map((p) => {
+      if (p.visibility === "subscribers") {
+        const isCreator = userCreator?.id === p.creatorId;
+        const isSubscribed = subscribedCreatorIds.includes(p.creatorId);
+        if (!isCreator && !isSubscribed) {
+          return { ...p, body: p.excerpt || "This content is for subscribers only.", isGated: true };
+        }
+      }
+      return { ...p, isGated: false };
+    });
+
+    res.json(gatedPosts);
   });
 
   app.get("/api/posts/:id", async (req, res) => {
@@ -638,7 +674,25 @@ export async function registerRoutes(
     }
     // Include creator info
     const creator = await storage.getCreator(post.creatorId);
-    res.json({ ...post, hasLiked, creator });
+
+    // Content gating
+    let isGated = false;
+    let gatedPost = post;
+    if (post.visibility === "subscribers") {
+      const userCreator = req.session?.userId
+        ? await storage.getCreatorByUserId(req.session.userId)
+        : null;
+      const isPostCreator = userCreator?.id === post.creatorId;
+      const isSubscribed = req.session?.userId
+        ? await storage.isSubscribedToCreator(req.session.userId, post.creatorId)
+        : false;
+      if (!isPostCreator && !isSubscribed) {
+        isGated = true;
+        gatedPost = { ...post, body: post.excerpt || "This content is for subscribers only." };
+      }
+    }
+
+    res.json({ ...gatedPost, hasLiked, creator, isGated });
   });
 
   app.post("/api/posts", requireAuth, async (req, res) => {
@@ -686,6 +740,18 @@ export async function registerRoutes(
   app.post("/api/posts/:id/comments", requireAuth, async (req, res) => {
     const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(401).json({ message: "Not authenticated" });
+
+    // Block comments on subscriber-only posts for non-subscribers
+    const targetPost = await storage.getPost(req.params.id);
+    if (targetPost && targetPost.visibility === "subscribers") {
+      const userCreator = await storage.getCreatorByUserId(req.session.userId!);
+      const isPostCreator = userCreator?.id === targetPost.creatorId;
+      const isSubscribed = await storage.isSubscribedToCreator(req.session.userId!, targetPost.creatorId);
+      if (!isPostCreator && !isSubscribed) {
+        return res.status(403).json({ message: "Subscribe to this creator to comment on this post" });
+      }
+    }
+
     const comment = await storage.createComment({
       postId: req.params.id,
       userId: req.session.userId!,

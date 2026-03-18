@@ -2603,8 +2603,8 @@ const SEED_POSTS = [
   {
     id: "p3", creatorId: "c1", title: "從 Google SRE 到 AI Agent 創業：我的轉型故事",
     body: `# 從 Google SRE 到 AI Agent 創業\n\n三年前我離開了 Google，開始全職開發 AI Agent。很多人問我為什麼，這裡分享一下我的心路歷程。\n\n## 在 Google 的日子\n\n在 Google 做 SRE 的五年，我學到了大規模系統運維的精髓。但我越來越覺得，很多重複性的運維工作完全可以被自動化。\n\n## 為什麼是 Agent？\n\n傳統的自動化腳本是「被動」的 — 你告訴它做什麼，它就做什麼。但 Agent 是「主動」的 — 它能觀察環境、做出判斷、採取行動。\n\nInfraBot 就是這個理念的產物。它不只是監控你的基礎架構，它能理解什麼是異常，分析根因，甚至自動修復。\n\n## 給想創業的工程師的建議\n\n1. **先解決自己的問題** — InfraBot 最初就是我自己用的工具\n2. **MVP 先行** — 不要等功能完美才發布\n3. **社區很重要** — AgentForge 這樣的平台讓獨立開發者也能觸達用戶\n4. **亞洲市場被低估了** — 大量需求還未被滿足\n\n> 「最好的 Agent 是你忘記它存在的那種 — 它安靜地在背景運作，讓你安心睡覺。」\n\n下一篇我會分享 InfraBot 的技術架構。`,
-    excerpt: "三年前我離開了 Google，開始全職開發 AI Agent。很多人問我為什麼...",
-    visibility: "public", tags: ["story", "devops", "startup"],
+    excerpt: "三年前我離開了 Google，開始全職開發 AI Agent。很多人問我為什麼...這是一個關於從大廠到創業的真實故事。",
+    visibility: "subscribers", tags: ["story", "devops", "startup"],
     likes: 891, commentCount: 72, createdAt: "2026-03-13T06:00:00Z", featured: true,
   },
   {
@@ -2631,8 +2631,8 @@ const SEED_POSTS = [
   {
     id: "p7", creatorId: "c8", title: "粵語 AI：為什麼香港需要自己的語言模型",
     body: `# 粵語 AI：為什麼香港需要自己的語言模型\n\n大部分中文 AI 模型都是針對普通話訓練的。但對於七百萬香港人來說，粵語才是日常語言。\n\n## 粵語的獨特挑戰\n\n### 書面語 vs 口語\n香港人寫正式文件用書面語（接近普通話），但日常溝通用口語粵語。例如：\n- 書面語：「你在做什麼？」\n- 粵語：「你做緊乜嘢？」\n\n### 中英夾雜\n香港人說話經常中英夾雜：「我今日要 OT，唔得閒去 happy hour。」\n\n### 語氣助詞\n粵語的語氣助詞非常豐富：㗎、嘞、囉、喎、噃... 每個都承載不同的情感和語氣。\n\n## 我們的粵語模型\n\n我們從頭訓練了一個粵語 NLP 模型：\n- 訓練數據來自 LIHKG、連登、OpenRice 評論\n- 支援粵語情感分析（終於能分辨「幾好」是真好還是諷刺了）\n- 中英粵三語混用識別\n- 粵語語音轉文字\n\n## 應用場景\n\n- **客服機器人**：用粵語同客人傾偈，唔使再聽「普通話服務請按 1」\n- **社交媒體分析**：分析香港社交媒體的真實輿情\n- **語音助手**：真正聽得明粵語的 AI 助手\n\n---\n\n我哋嘅粵語 Agent 已經上線，歡迎試用！`,
-    excerpt: "大部分中文 AI 模型都是針對普通話訓練的。但對於七百萬香港人來說，粵語才是日常語言...",
-    visibility: "public", tags: ["cantonese", "hong-kong", "nlp"],
+    excerpt: "大部分中文 AI 模型都是針對普通話訓練的。但對於七百萬香港人來說，粵語才是日常語言...我們如何從零建構粵語 NLP。",
+    visibility: "subscribers", tags: ["cantonese", "hong-kong", "nlp"],
     likes: 789, commentCount: 56, createdAt: "2026-03-09T12:00:00Z", featured: true,
   },
   {
@@ -2654,7 +2654,7 @@ const SEED_POSTS = [
     id: "p10", creatorId: "c10", title: "香港地產科技革命：AI Agent 如何改變你買樓的方式",
     body: `# 香港地產科技革命\n\n香港樓市一直係全世界最貼。一個普通家庭要不吃不喝 20 年先買到樓。但係呢個過程入邊，AI 可以幫到你。\n\n## 買樓的痛點\n\n1. **估價不透明** — 同一座大廈不同層數價錢可以差幾十萬\n2. **資訊不對稱** — 地產經紀知道的永遠比你多\n3. **流程複雜** — 簽約、按揭、律師費、印花稅…\n4. **時間壓力** — 好盤要即時決定\n\n## PropVal HK 做緊乞\n\n我哋 AI Agent 可以：\n\n- 分析過去 10 年所有成交紀錄，給你一個公平估價\n- 比較同區不同屋苑的性價比\n- 計算實際供款金額（包括所有隱藏費用）\n- 預測未來 1-3 年價格走勢\n\n## 真實案例\n\n一個用戶用 PropVal 發現了一個被低估的盤，最終以市場價低 12% 的價格成交，省了超過 HK$800,000。\n\n---\n\n喔好意思講錢，但買樓真係要精明啲。試下 PropVal。`,
     excerpt: "香港樓市一直係全世界最貼。AI 可以幫你在買樓過程中省下數十萬...",
-    visibility: "public", tags: ["proptech", "hong-kong", "real-estate"],
+    visibility: "subscribers", tags: ["proptech", "hong-kong", "real-estate"],
     likes: 678, commentCount: 52, createdAt: "2026-03-14T07:00:00Z", featured: false,
   },
   {
@@ -2689,7 +2689,7 @@ const SEED_POSTS = [
     id: "p15", creatorId: "c15", title: "為什麼亞洲學生需要自己的 AI 家教",
     body: `# 為什麼亞洲學生需要自己的 AI 家教\n\n美國有 Khan Academy，但它對亞洲學生來說有幾個問題：\n\n1. **課綱不同** — 台灣、香港、日本的數學課綱與美國差異很大\n2. **語言障礙** — 用英文學數學對很多亞洲學生來說是雙重挑戰\n3. **教學風格** — 亞洲的教育更強調練習和精練\n\n## TutorBot 的設計理念\n\n- 支援台灣、香港、日本課綱\n- 繁體中文和英文雙語教學\n- 根據學生程度自動調整難度\n- 遊戲化學習，保持學生動力\n\n## 效果\n\n在台北 3 所國中的試點中：\n- 學生數學成績平均提升 23%\n- 學習時間增加 45%（因為學生覺得好玩）\n- 家長滿意度 4.7/5\n\n---\n\n每個孩子都應該有一個懂他的 AI 家教。`,
     excerpt: "美國有 Khan Academy，但它對亞洲學生來說有幾個問題...",
-    visibility: "public", tags: ["edtech", "education", "taiwan"],
+    visibility: "subscribers", tags: ["edtech", "education", "taiwan"],
     likes: 567, commentCount: 43, createdAt: "2026-03-11T05:00:00Z", featured: false,
   },
   {
@@ -2717,7 +2717,7 @@ const SEED_POSTS = [
     id: "p19", creatorId: "c11", title: "メルカリで学んだレコメンドエンジンの設計原則",
     body: `# メルカリで学んだレコメンドエンジン\n\nメルカリのレコメンデーションエンジンは、日本のC2C市場で最も成功したシステムの一つです。\n\n## 大切な3つの原則\n\n### 1. 新鮮さ > 正確さ\n購入履歴からの正確な予測よりも、「今トレンドのもの」を優先する方がユーザー体験が良い。\n\n### 2. セレンディピティ\n予想外の発見がユーザーを喜ばせる。100%正確な推薦より、「これも好きかも？」が大事。\n\n### 3. コンテキスト\n季節、時間帯、天気、イベントを考慮。雨の日に傷を薦めない。\n\n## RecoAgent の特徴\n\n- リアルタイムパーソナライゼーション\n- 日本語商品名・カテゴリ理解\n- コールドスタート問題の解決（新規ユーザーへの推薦）\n- A/Bテスト内蔵\n\n---\n\nRecoAgent で、あなたのECサイトの売上を伸ばしましょう。`,
     excerpt: "メルカリのレコメンデーションエンジンは、日本のC2C市場で最も成功したシステムの一つ...",
-    visibility: "public", tags: ["recommendation", "e-commerce", "japan"],
+    visibility: "subscribers", tags: ["recommendation", "e-commerce", "japan"],
     likes: 678, commentCount: 34, createdAt: "2026-03-07T10:00:00Z", featured: false,
   },
     {
@@ -2738,7 +2738,7 @@ const SEED_POSTS = [
     id: "p22", creatorId: "c27", title: "Why I'm Building a Trading Competition for AI Agents",
     body: `# Why I'm Building a Trading Competition for AI Agents\n\nEvery quant developer backtests in isolation. You optimize your Sharpe ratio, celebrate your 47% annual return in backtesting, then get crushed by reality. Why? Because you never competed against other strategies in real-time.\n\n## The Problem\n\n- Backtesting is lonely — no adversarial pressure\n- Paper trading doesn't simulate competition for liquidity\n- Existing competitions (Kaggle, Numerai) are about predictions, not execution\n\n## AlphaArena's Approach\n\n1. **Real-time competition** — bots trade simultaneously on the same orderbook\n2. **Multi-asset** — crypto, US stocks, HK stocks, forex\n3. **Risk-adjusted scoring** — Sharpe, Sortino, max drawdown all factor in\n4. **ELO ranking** — like chess, your rank adjusts based on who you beat\n\n## Why Hong Kong?\n\nHK is uniquely positioned — timezone overlap with both Asian and US markets, no capital gains tax, and a growing quant community. AlphaArena is built for this ecosystem.\n\n---\n\nAlphaArena is in beta on AgentForge. Join the first tournament.`,
     excerpt: "Every quant developer backtests in isolation. You never competed against other strategies in real-time...",
-    visibility: "public", tags: ["trading", "competition", "quant"],
+    visibility: "subscribers", tags: ["trading", "competition", "quant"],
     likes: 234, commentCount: 19, createdAt: "2026-03-17T06:00:00Z", featured: false,
   },
   {
@@ -2767,7 +2767,7 @@ const SEED_POSTS = [
     id: "p26", creatorId: "c38", title: "From ChatDev to IoA: Building the Internet of AI Agents",
     body: `# From ChatDev to the Internet of Agents\n\nWhen we launched ChatDev at Tsinghua, the idea was simple: what if a team of AI agents could build software like a real company?\n\n## ChatDev's Multi-Agent Architecture\n\n- **CEO Agent**: Makes high-level decisions\n- **Programmer Agent**: Writes code\n- **Tester Agent**: Catches bugs\n- **Designer Agent**: Creates UI\n\nThe agents communicate through natural language, debating design choices and iterating on solutions — just like human engineers.\n\n## What We Learned\n\n1. **Specialization works**: Agents with focused roles outperform generalist agents\n2. **Communication protocols matter**: Structured dialogue beats free-form chat\n3. **Quality improves with review cycles**: Agent-to-agent code review catches 60%+ of bugs\n\n## The Next Step: Internet of Agents\n\nNow we're asking a bigger question: what if agents from different systems could collaborate across the internet?\n\nIoA (Internet of Agents) enables:\n- **Cross-system agent discovery**: Find the right agent for the job\n- **Standardized communication**: Like HTTP for AI agents\n- **Distributed task execution**: Break complex problems across multiple agent teams\n\nBoth projects are open-source under OpenBMB.`,
     excerpt: "What if AI agents could build software like a real company? From ChatDev to the Internet of Agents...",
-    visibility: "public", tags: ["multi-agent", "chatdev", "tsinghua", "open-source"],
+    visibility: "subscribers", tags: ["multi-agent", "chatdev", "tsinghua", "open-source"],
     likes: 1890, commentCount: 134, createdAt: "2026-03-14T12:00:00Z", featured: true,
   },
   // --- Batch 3: ClawHub posts ---
@@ -2790,7 +2790,7 @@ const SEED_POSTS = [
     id: "p29", creatorId: "c69", title: "AI Agent 炼成 A股操盘手：AKShare MCP 如何让 AI 理解中国股市",
     body: `# AI Agent 炼成 A股操盘手\n\n当全球 AI 交易工具都围绕着纳斯达克和美股设计时，中国 A 股市场被完全忽略了。AKShare MCP Server 让 AI Agent 能够真正理解中国股市。\n\n## 为什么 A 股需要专门的 MCP Server？\n\n1. **T+1 交易制度** — 与美股完全不同的交易规则\n2. **涨跌停板制度** — 10%/20% 涨跌幅限制\n3. **行业分类** — 申万一级/二级行业，与 GICS 不同\n4. **数据源** — 东财、同花顺、新浪财经，不是 Bloomberg\n\n## 实战案例\n\n「分析贵州茅台近一年的资金流向」→ AI 自动调用历史行情 + 资金流数据\n\n「今天哪些板块资金流入最多？」→ 实时板块资金分析\n\n---\n\n开源免费，欢迎在 Smithery 安装。`,
     excerpt: "当全球 AI 交易工具都围绕纳斯达克设计时，中国 A 股被完全忽略了...",
-    visibility: "public", tags: ["chinese", "a-shares", "trading", "smithery", "mcp"],
+    visibility: "subscribers", tags: ["chinese", "a-shares", "trading", "smithery", "mcp"],
     likes: 567, commentCount: 45, createdAt: "2026-03-17T14:00:00Z", featured: false,
   },
   {

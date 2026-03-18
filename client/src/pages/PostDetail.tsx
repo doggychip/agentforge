@@ -4,8 +4,9 @@ import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import type { Post, Creator, Comment } from "@shared/schema";
-import { Heart, MessageCircle, Clock, ArrowLeft, Send, Loader2 } from "lucide-react";
+import { Heart, MessageCircle, Clock, ArrowLeft, Send, Loader2, Lock, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -144,7 +145,7 @@ export default function PostDetail() {
   const { toast } = useToast();
   const [commentText, setCommentText] = useState("");
 
-  const { data: postData, isLoading } = useQuery<Post & { hasLiked: boolean; creator: Creator | null }>({
+  const { data: postData, isLoading } = useQuery<Post & { hasLiked: boolean; creator: Creator | null; isGated?: boolean }>({
     queryKey: ["/api/posts", id],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/posts/${id}`);
@@ -201,7 +202,7 @@ export default function PostDetail() {
     );
   }
 
-  const { creator, hasLiked, ...post } = postData;
+  const { creator, hasLiked, isGated, ...post } = postData as Post & { hasLiked: boolean; creator: Creator | null; isGated?: boolean };
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -218,119 +219,161 @@ export default function PostDetail() {
             <img src={creator.avatar} alt={creator.name} className="w-10 h-10 rounded-full bg-muted" />
           </Link>
         )}
-        <div>
+        <div className="flex-1">
           <p className="text-sm font-medium">{creator?.name ?? "Unknown"}</p>
           <p className="text-xs text-muted-foreground">
             @{creator?.handle} · <Clock size={11} className="inline -mt-px" /> {timeAgo(post.createdAt)}
           </p>
         </div>
+        {post.visibility === "subscribers" && !isGated && (
+          <Badge variant="secondary" className="text-[10px] gap-1 shrink-0">
+            <Lock size={10} /> Subscribers only
+          </Badge>
+        )}
       </div>
 
-      {/* Post content */}
-      <article className="mb-8">
-        {renderMarkdown(post.body)}
-      </article>
+      {/* Gated content card */}
+      {isGated ? (
+        <>
+          {/* Show excerpt */}
+          <article className="mb-6">
+            <p className="text-sm text-muted-foreground leading-relaxed italic">{post.body}</p>
+          </article>
 
-      {/* Tags */}
-      <div className="flex flex-wrap gap-1.5 mb-6">
-        {post.tags.map((tag) => (
-          <span key={tag} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-            {tag}
-          </span>
-        ))}
-      </div>
-
-      {/* Like + stats bar */}
-      <div className="flex items-center gap-4 py-4 border-t border-b border-border mb-8">
-        <Button
-          variant={hasLiked ? "default" : "ghost"}
-          size="sm"
-          className="gap-1.5 h-8 text-xs"
-          onClick={() => {
-            if (!user) {
-              toast({ title: "Sign in to like posts", variant: "destructive" });
-              return;
-            }
-            likeMutation.mutate();
-          }}
-          disabled={likeMutation.isPending}
-          data-testid="button-like"
-        >
-          <Heart size={14} fill={hasLiked ? "currentColor" : "none"} />
-          {post.likes}
-        </Button>
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <MessageCircle size={14} />
-          {post.commentCount} comments
-        </span>
-      </div>
-
-      {/* Comments section */}
-      <div>
-        <h3 className="text-sm font-semibold mb-4">Comments</h3>
-
-        {/* Comment form */}
-        {user ? (
-          <div className="flex gap-3 mb-6">
-            <Avatar className="h-8 w-8 shrink-0">
-              <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">
-                {user.displayName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 space-y-2">
-              <Textarea
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                placeholder="Write a comment..."
-                className="min-h-[60px] text-sm resize-none"
-                data-testid="input-comment"
-              />
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  className="h-7 text-xs gap-1.5"
-                  disabled={!commentText.trim() || commentMutation.isPending}
-                  onClick={() => commentMutation.mutate(commentText.trim())}
-                  data-testid="button-submit-comment"
-                >
-                  {commentMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-                  Comment
-                </Button>
+          {/* Gating card */}
+          <div className="rounded-xl border-2 border-amber-500/30 bg-amber-500/5 p-8 text-center mb-8" data-testid="gating-card">
+            <Lock size={28} className="mx-auto mb-3 text-amber-500" />
+            <h3 className="text-base font-semibold text-foreground mb-2">This post is for subscribers only</h3>
+            <p className="text-sm text-muted-foreground mb-5 max-w-md mx-auto">
+              Subscribe to {creator?.name ?? "this creator"} to unlock this and all subscriber-only content.
+            </p>
+            {creator && (
+              <div className="flex items-center justify-center gap-3 mb-5">
+                <img src={creator.avatar} alt={creator.name} className="w-10 h-10 rounded-full bg-muted" />
+                <div className="text-left">
+                  <p className="text-sm font-medium">{creator.name}</p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Users size={11} /> {creator.subscribers} subscribers
+                  </p>
+                </div>
               </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-4 mb-6 border border-dashed border-border rounded-lg">
-            <p className="text-sm text-muted-foreground mb-2">Sign in to join the discussion</p>
-            <Link href="/auth" className="no-underline">
-              <Button size="sm" variant="outline" className="h-7 text-xs">Sign in</Button>
+            )}
+            <Link href={creator ? `/creators/${creator.id}` : "/creators"} className="no-underline">
+              <Button className="gap-1.5" data-testid="button-subscribe-cta">
+                Subscribe
+              </Button>
             </Link>
           </div>
-        )}
+        </>
+      ) : (
+        <>
+          {/* Post content */}
+          <article className="mb-8">
+            {renderMarkdown(post.body)}
+          </article>
 
-        {/* Comments list */}
-        <div className="space-y-4">
-          {(comments ?? []).map((comment) => (
-            <div key={comment.id} className="flex gap-3" data-testid={`comment-${comment.id}`}>
-              <Avatar className="h-7 w-7 shrink-0">
-                <AvatarFallback className="text-[9px] bg-muted font-medium">
-                  {comment.authorName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium">{comment.authorName}</span>
-                  <span className="text-[11px] text-muted-foreground">{timeAgo(comment.createdAt)}</span>
+          {/* Tags */}
+          <div className="flex flex-wrap gap-1.5 mb-6">
+            {post.tags.map((tag) => (
+              <span key={tag} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                {tag}
+              </span>
+            ))}
+          </div>
+
+          {/* Like + stats bar */}
+          <div className="flex items-center gap-4 py-4 border-t border-b border-border mb-8">
+            <Button
+              variant={hasLiked ? "default" : "ghost"}
+              size="sm"
+              className="gap-1.5 h-8 text-xs"
+              onClick={() => {
+                if (!user) {
+                  toast({ title: "Sign in to like posts", variant: "destructive" });
+                  return;
+                }
+                likeMutation.mutate();
+              }}
+              disabled={likeMutation.isPending}
+              data-testid="button-like"
+            >
+              <Heart size={14} fill={hasLiked ? "currentColor" : "none"} />
+              {post.likes}
+            </Button>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <MessageCircle size={14} />
+              {post.commentCount} comments
+            </span>
+          </div>
+
+          {/* Comments section */}
+          <div>
+            <h3 className="text-sm font-semibold mb-4">Comments</h3>
+
+            {/* Comment form */}
+            {user ? (
+              <div className="flex gap-3 mb-6">
+                <Avatar className="h-8 w-8 shrink-0">
+                  <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">
+                    {user.displayName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 space-y-2">
+                  <Textarea
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    placeholder="Write a comment..."
+                    className="min-h-[60px] text-sm resize-none"
+                    data-testid="input-comment"
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs gap-1.5"
+                      disabled={!commentText.trim() || commentMutation.isPending}
+                      onClick={() => commentMutation.mutate(commentText.trim())}
+                      data-testid="button-submit-comment"
+                    >
+                      {commentMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                      Comment
+                    </Button>
+                  </div>
                 </div>
-                <p className="text-sm text-foreground/90 mt-0.5">{comment.body}</p>
               </div>
+            ) : (
+              <div className="text-center py-4 mb-6 border border-dashed border-border rounded-lg">
+                <p className="text-sm text-muted-foreground mb-2">Sign in to join the discussion</p>
+                <Link href="/auth" className="no-underline">
+                  <Button size="sm" variant="outline" className="h-7 text-xs">Sign in</Button>
+                </Link>
+              </div>
+            )}
+
+            {/* Comments list */}
+            <div className="space-y-4">
+              {(comments ?? []).map((comment) => (
+                <div key={comment.id} className="flex gap-3" data-testid={`comment-${comment.id}`}>
+                  <Avatar className="h-7 w-7 shrink-0">
+                    <AvatarFallback className="text-[9px] bg-muted font-medium">
+                      {comment.authorName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium">{comment.authorName}</span>
+                      <span className="text-[11px] text-muted-foreground">{timeAgo(comment.createdAt)}</span>
+                    </div>
+                    <p className="text-sm text-foreground/90 mt-0.5">{comment.body}</p>
+                  </div>
+                </div>
+              ))}
+              {(comments ?? []).length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No comments yet. Be the first to comment.</p>
+              )}
             </div>
-          ))}
-          {(comments ?? []).length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">No comments yet. Be the first to comment.</p>
-          )}
-        </div>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
