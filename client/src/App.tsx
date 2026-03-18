@@ -28,7 +28,8 @@ function AppRouter() {
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={Home} />
+        <Route path="/" component={ForCreators} />
+        <Route path="/explore" component={Home} />
         <Route path="/agents" component={Agents} />
         <Route path="/agents/:id" component={AgentDetail} />
         <Route path="/creators" component={Creators} />

@@ -35,7 +35,7 @@ function AgentForgeLogo() {
 }
 
 const navItems = [
-  { href: "/", label: "Explore", icon: Compass },
+  { href: "/explore", label: "Explore", icon: Compass },
   { href: "/feed", label: "Feed", icon: Newspaper },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/creators", label: "Creators", icon: Users },
@@ -204,7 +204,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <nav className="hidden md:flex items-center gap-1" data-testid="nav-desktop">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+              const isActive = location === item.href || location.startsWith(item.href + "/");
               return (
                 <Link
                   key={item.href}
@@ -361,7 +361,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <span>&copy; 2026 AgentForge</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/for-creators" className="text-muted-foreground hover:text-foreground no-underline">For Creators</Link>
+            <Link href="/" className="text-muted-foreground hover:text-foreground no-underline">For Creators</Link>
             <Link href="/docs" className="text-muted-foreground hover:text-foreground no-underline">Docs</Link>
             <Link href="/docs" className="text-muted-foreground hover:text-foreground no-underline">API</Link>
             <span>Status</span>
