@@ -81,7 +81,7 @@ export default function Auth() {
                   id="displayName"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Ryan Cheung"
+                  placeholder="Your Name"
                   required
                   data-testid="input-display-name"
                 />
@@ -92,7 +92,7 @@ export default function Auth() {
                   id="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="doggychip"
+                  placeholder="username"
                   required
                   minLength={3}
                   pattern="^[a-zA-Z0-9_-]+$"
