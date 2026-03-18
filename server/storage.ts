@@ -427,12 +427,53 @@ class PgStorage implements IStorage {
   }
 
   async seed() {
-    const existing = await db!.select().from(creators).limit(1);
-    if (existing.length > 0) return;
-    await db!.insert(creators).values(SEED_CREATORS);
-    await db!.insert(agents).values(SEED_AGENTS);
-    await db!.insert(posts).values(SEED_POSTS as any);
-    console.log("Database seeded with sample data");
+    // Upsert creators
+    const existingCreators = await db!.select().from(creators).limit(1);
+    if (existingCreators.length === 0) {
+      await db!.insert(creators).values(SEED_CREATORS);
+      console.log("Seeded creators");
+    } else {
+      // Insert any new creators not yet in DB
+      for (const c of SEED_CREATORS) {
+        const [exists] = await db!.select().from(creators).where(eq(creators.id, c.id!));
+        if (!exists) {
+          await db!.insert(creators).values(c).onConflictDoNothing();
+        }
+      }
+      console.log("Creators up-to-date");
+    }
+
+    // Upsert agents
+    const existingAgents = await db!.select().from(agents).limit(1);
+    if (existingAgents.length === 0) {
+      await db!.insert(agents).values(SEED_AGENTS);
+      console.log("Seeded agents");
+    } else {
+      for (const a of SEED_AGENTS) {
+        const [exists] = await db!.select().from(agents).where(eq(agents.id, a.id!));
+        if (!exists) {
+          await db!.insert(agents).values(a).onConflictDoNothing();
+        }
+      }
+      console.log("Agents up-to-date");
+    }
+
+    // Upsert posts
+    const existingPosts = await db!.select().from(posts).limit(1);
+    if (existingPosts.length === 0) {
+      await db!.insert(posts).values(SEED_POSTS as any);
+      console.log("Seeded posts");
+    } else {
+      for (const p of SEED_POSTS) {
+        const [exists] = await db!.select().from(posts).where(eq(posts.id, (p as any).id!));
+        if (!exists) {
+          await db!.insert(posts).values(p as any).onConflictDoNothing();
+        }
+      }
+      console.log("Posts up-to-date");
+    }
+
+    console.log("Database seed complete");
   }
 }
 
