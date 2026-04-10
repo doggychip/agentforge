@@ -101,9 +101,7 @@
         border-radius: 0 0 8px 0;
         transition: top 0.2s;
       }
-      .skip-link:focus {
-        top: 0;
-      }
+      .skip-link:focus { top: 0; }
 
       /* Focus Styles for Accessibility */
       *:focus-visible {
@@ -144,17 +142,11 @@
         transition: opacity 0.3s, transform 0.3s, background 0.2s;
         box-shadow: 0 4px 12px rgba(91, 191, 181, 0.3);
       }
-      .back-to-top.visible {
-        opacity: 1;
-        transform: translateY(0);
-      }
-      .back-to-top:hover {
-        background: #4aa99b;
-        box-shadow: 0 6px 20px rgba(91, 191, 181, 0.5);
-      }
+      .back-to-top.visible { opacity: 1; transform: translateY(0); }
+      .back-to-top:hover { background: #4aa99b; box-shadow: 0 6px 20px rgba(91, 191, 181, 0.5); }
 
-      /* Section Fade-in Animation */
-      .af-section {
+      /* Section Fade-in Animation - FIXED: only pending sections are hidden */
+      .af-section.af-pending {
         opacity: 0;
         transform: translateY(30px);
         transition: opacity 0.6s ease-out, transform 0.6s ease-out;
@@ -162,6 +154,7 @@
       .af-section.af-visible {
         opacity: 1;
         transform: translateY(0);
+        transition: opacity 0.6s ease-out, transform 0.6s ease-out;
       }
 
       /* Card Hover Effects */
@@ -225,11 +218,7 @@
         max-width: 420px;
         color: #e2e8f0;
       }
-      .af-kbd-modal h3 {
-        margin: 0 0 1rem;
-        color: #5bbfb5;
-        font-size: 1.125rem;
-      }
+      .af-kbd-modal h3 { margin: 0 0 1rem; color: #5bbfb5; font-size: 1.125rem; }
       .af-kbd-row {
         display: flex;
         justify-content: space-between;
@@ -272,31 +261,14 @@
         color: rgba(255, 255, 255, 0.6);
         z-index: 100;
       }
-      .af-trust-bar span {
-        display: flex;
-        align-items: center;
-        gap: 0.35rem;
-      }
-      .af-trust-bar .af-stat-num {
-        color: #5bbfb5;
-        font-weight: 600;
-      }
+      .af-trust-bar span { display: flex; align-items: center; gap: 0.35rem; }
+      .af-trust-bar .af-stat-num { color: #5bbfb5; font-weight: 600; }
 
       /* Light mode overrides */
       @media (prefers-color-scheme: light) {
-        .af-toast {
-          background: #ffffff;
-          color: #1a1f2e;
-          border-color: rgba(91, 191, 181, 0.4);
-        }
-        .af-kbd-modal {
-          background: #ffffff;
-          color: #1a1f2e;
-        }
-        .af-trust-bar {
-          background: linear-gradient(90deg, rgba(91, 191, 181, 0.12), rgba(91, 191, 181, 0.04));
-          color: rgba(0, 0, 0, 0.6);
-        }
+        .af-toast { background: #ffffff; color: #1a1f2e; border-color: rgba(91, 191, 181, 0.4); }
+        .af-kbd-modal { background: #ffffff; color: #1a1f2e; }
+        .af-trust-bar { background: linear-gradient(90deg, rgba(91, 191, 181, 0.12), rgba(91, 191, 181, 0.04)); color: rgba(0, 0, 0, 0.6); }
       }
     </style>
   </head>
@@ -339,11 +311,7 @@
       var backToTop = document.getElementById('af-back-to-top');
       if (backToTop) {
         window.addEventListener('scroll', function() {
-          if (window.scrollY > 400) {
-            backToTop.classList.add('visible');
-          } else {
-            backToTop.classList.remove('visible');
-          }
+          backToTop.classList.toggle('visible', window.scrollY > 400);
         }, { passive: true });
         backToTop.addEventListener('click', function() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -367,23 +335,36 @@
         }, duration);
       };
 
-      /* === Fix 4: Section Fade-in with IntersectionObserver === */
+      /* === Fix 4: Section Fade-in with IntersectionObserver (FIXED) === */
       function initFadeIn() {
         var sections = document.querySelectorAll('section, [class*="section"], [class*="Section"]');
         if (!sections.length) {
           setTimeout(initFadeIn, 500);
           return;
         }
-        sections.forEach(function(s) { s.classList.add('af-section'); });
+        var viewportHeight = window.innerHeight;
+        sections.forEach(function(s) {
+          s.classList.add('af-section');
+          var rect = s.getBoundingClientRect();
+          /* Only hide sections that are below the viewport */
+          if (rect.top > viewportHeight) {
+            s.classList.add('af-pending');
+          }
+        });
         var observer = new IntersectionObserver(function(entries) {
           entries.forEach(function(entry) {
             if (entry.isIntersecting) {
+              entry.target.classList.remove('af-pending');
               entry.target.classList.add('af-visible');
               observer.unobserve(entry.target);
             }
           });
-        }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
-        sections.forEach(function(s) { observer.observe(s); });
+        }, { threshold: 0.05, rootMargin: '0px 0px -30px 0px' });
+        sections.forEach(function(s) {
+          if (s.classList.contains('af-pending')) {
+            observer.observe(s);
+          }
+        });
       }
       setTimeout(initFadeIn, 800);
 
@@ -409,9 +390,7 @@
             foundStats = true;
           }
         });
-        if (!foundStats) {
-          setTimeout(updateTrustBar, 2000);
-        }
+        if (!foundStats) setTimeout(updateTrustBar, 2000);
       }
       setTimeout(updateTrustBar, 1500);
 
@@ -448,10 +427,8 @@
       document.addEventListener('keydown', function(e) {
         var tag = (e.target.tagName || '').toLowerCase();
         if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
-
         if (e.key === 'Escape' && kbdModalOpen) {
-          var modal = document.querySelector('.af-kbd-modal-overlay');
-          if (modal) closeKbdModal(modal);
+          closeKbdModal(document.querySelector('.af-kbd-modal-overlay'));
           return;
         }
         if (e.key === '?') { showKbdModal(); return; }
@@ -463,9 +440,7 @@
         }
         if (lastKey === 'g') {
           var routes = { h: '#/', e: '#/explore', a: '#/agents', f: '#/feed', c: '#/creators', d: '#/docs' };
-          if (routes[e.key]) {
-            window.location.hash = routes[e.key];
-          }
+          if (routes[e.key]) window.location.hash = routes[e.key];
           lastKey = '';
           return;
         }
@@ -490,7 +465,7 @@
       }
       setTimeout(addMcpBadges, 2000);
 
-      /* === Fix 8: ARIA Live Announcer for Navigation === */
+      /* === Fix 8: ARIA Live Announcer === */
       window.addEventListener('hashchange', function() {
         var liveRegion = document.getElementById('af-live');
         if (liveRegion) {
@@ -501,17 +476,14 @@
 
       /* === Fix 9: Form Accessibility === */
       function enhanceForms() {
-        var inputs = document.querySelectorAll('input:not([aria-label]):not([aria-labelledby])');
-        inputs.forEach(function(input) {
+        document.querySelectorAll('input:not([aria-label]):not([aria-labelledby])').forEach(function(input) {
           var placeholder = input.getAttribute('placeholder');
-          if (placeholder && !input.getAttribute('aria-label')) {
-            input.setAttribute('aria-label', placeholder);
-          }
+          if (placeholder) input.setAttribute('aria-label', placeholder);
         });
       }
       setTimeout(enhanceForms, 1500);
-      var formObserver = new MutationObserver(function() { setTimeout(enhanceForms, 300); });
-      formObserver.observe(document.body, { childList: true, subtree: true });
+      new MutationObserver(function() { setTimeout(enhanceForms, 300); })
+        .observe(document.body, { childList: true, subtree: true });
 
     })();
     </script>
