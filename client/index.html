@@ -1,31 +1,519 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!--
-       ______                            __
-      / ____/___  ____ ___  ____  __  __/ /____  _____
-     / /   / __ \/ __ `__ \/ __ \/ / / / __/ _ \/ ___/
-    / /___/ /_/ / / / / / / /_/ / /_/ / /_/  __/ /
-    \____/\____/_/ /_/ /_/ .___/\__,_/\__/\___/_/
-                        /_/
-            Created with Perplexity Computer
-            https://www.perplexity.ai/computer
-    -->
-    <meta name="generator" content="Perplexity Computer">
-    <meta name="author" content="Perplexity Computer">
-    <meta property="og:see_also" content="https://www.perplexity.ai/computer">
-    <link rel="author" href="https://www.perplexity.ai/computer">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <title>AgentForge - Subscribe to AI Agents, Tools & Dev Content</title>
-    <meta name="description" content="The marketplace where developers publish AI agents, tools, and content — and both humans and AI agents subscribe." />
+    <meta name="description" content="AgentForge is the subscription marketplace where developers publish AI agents, tools, and content. Subscribe as human or AI agent. MCP & A2A ready." />
+    <meta name="keywords" content="AI agents, MCP, A2A protocol, developer tools, AI marketplace, subscription, API, machine learning, LLM tools, agent-to-agent" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://patreon.zeabur.app/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="AgentForge - AI Agent Subscription Marketplace" />
+    <meta property="og:description" content="Subscribe to AI agents, developer tools & content. Built for developers and AI agents alike. MCP & A2A protocol ready." />
+    <meta property="og:url" content="https://patreon.zeabur.app/" />
+    <meta property="og:site_name" content="AgentForge" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://patreon.zeabur.app/favicon.png" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AgentForge - AI Agent Subscription Marketplace" />
+    <meta name="twitter:description" content="Subscribe to AI agents, developer tools & content. MCP & A2A protocol ready." />
+    <meta name="twitter:image" content="https://patreon.zeabur.app/favicon.png" />
+
+    <!-- PWA -->
+    <meta name="theme-color" content="#5bbfb5" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Hreflang -->
+    <link rel="alternate" hreflang="en" href="https://patreon.zeabur.app/" />
+    <link rel="alternate" hreflang="zh" href="https://patreon.zeabur.app/" />
+    <link rel="alternate" hreflang="ja" href="https://patreon.zeabur.app/" />
+    <link rel="alternate" hreflang="ko" href="https://patreon.zeabur.app/" />
+    <link rel="alternate" hreflang="x-default" href="https://patreon.zeabur.app/" />
+
+    <!-- Preconnect & DNS Prefetch -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet" />
     <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "AgentForge",
+      "url": "https://patreon.zeabur.app",
+      "logo": "https://patreon.zeabur.app/favicon.png",
+      "description": "Subscription marketplace for AI agents, developer tools and content.",
+      "sameAs": []
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "AgentForge",
+      "url": "https://patreon.zeabur.app",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://patreon.zeabur.app/#/explore?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "AgentForge",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "description": "AI agent subscription marketplace with MCP and A2A protocol support."
+    }
+    </script>
+
+    <!-- Enhanced Styles -->
+    <style>
+      /* Skip Link for Accessibility */
+      .skip-link {
+        position: absolute;
+        top: -100%;
+        left: 0;
+        background: #5bbfb5;
+        color: #0e1115;
+        padding: 0.5rem 1rem;
+        z-index: 10000;
+        font-weight: 600;
+        border-radius: 0 0 8px 0;
+        transition: top 0.2s;
+      }
+      .skip-link:focus {
+        top: 0;
+      }
+
+      /* Focus Styles for Accessibility */
+      *:focus-visible {
+        outline: 2px solid #5bbfb5;
+        outline-offset: 2px;
+      }
+
+      /* Reduced Motion */
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+
+      /* Back to Top Button */
+      .back-to-top {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #5bbfb5;
+        color: #0e1115;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        font-weight: 700;
+        z-index: 9998;
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.3s, transform 0.3s, background 0.2s;
+        box-shadow: 0 4px 12px rgba(91, 191, 181, 0.3);
+      }
+      .back-to-top.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .back-to-top:hover {
+        background: #4aa99b;
+        box-shadow: 0 6px 20px rgba(91, 191, 181, 0.5);
+      }
+
+      /* Section Fade-in Animation */
+      .af-section {
+        opacity: 0;
+        transform: translateY(30px);
+        transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+      }
+      .af-section.af-visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* Card Hover Effects */
+      [class*="card"], [class*="Card"] {
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+      }
+      [class*="card"]:hover, [class*="Card"]:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px rgba(91, 191, 181, 0.12);
+      }
+
+      /* Navbar Glass Effect */
+      nav, header, [class*="navbar"], [class*="Navbar"] {
+        backdrop-filter: blur(12px) saturate(180%);
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
+      }
+
+      /* Toast Notification */
+      .af-toast-container {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 10001;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .af-toast {
+        background: #1a1f2e;
+        color: #e2e8f0;
+        border: 1px solid rgba(91, 191, 181, 0.3);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        animation: afToastIn 0.3s ease-out;
+        max-width: 320px;
+      }
+      @keyframes afToastIn {
+        from { opacity: 0; transform: translateX(100%); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      /* Keyboard Shortcut Modal */
+      .af-kbd-modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 10002;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+      }
+      .af-kbd-modal {
+        background: #1a1f2e;
+        border: 1px solid rgba(91, 191, 181, 0.2);
+        border-radius: 12px;
+        padding: 1.5rem;
+        width: 90%;
+        max-width: 420px;
+        color: #e2e8f0;
+      }
+      .af-kbd-modal h3 {
+        margin: 0 0 1rem;
+        color: #5bbfb5;
+        font-size: 1.125rem;
+      }
+      .af-kbd-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.4rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      .af-kbd-key {
+        background: rgba(91, 191, 181, 0.15);
+        color: #5bbfb5;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-family: 'Geist Mono', monospace;
+        font-size: 0.8rem;
+      }
+
+      /* MCP Badge */
+      .af-mcp-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: linear-gradient(135deg, rgba(91, 191, 181, 0.15), rgba(91, 191, 181, 0.05));
+        border: 1px solid rgba(91, 191, 181, 0.3);
+        border-radius: 6px;
+        padding: 2px 8px;
+        font-size: 0.7rem;
+        color: #5bbfb5;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+
+      /* Trust Bar */
+      .af-trust-bar {
+        background: linear-gradient(90deg, rgba(91, 191, 181, 0.08), rgba(91, 191, 181, 0.03));
+        border-bottom: 1px solid rgba(91, 191, 181, 0.1);
+        padding: 0.5rem 1rem;
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.6);
+        z-index: 100;
+      }
+      .af-trust-bar span {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+      .af-trust-bar .af-stat-num {
+        color: #5bbfb5;
+        font-weight: 600;
+      }
+
+      /* Light mode overrides */
+      @media (prefers-color-scheme: light) {
+        .af-toast {
+          background: #ffffff;
+          color: #1a1f2e;
+          border-color: rgba(91, 191, 181, 0.4);
+        }
+        .af-kbd-modal {
+          background: #ffffff;
+          color: #1a1f2e;
+        }
+        .af-trust-bar {
+          background: linear-gradient(90deg, rgba(91, 191, 181, 0.12), rgba(91, 191, 181, 0.04));
+          color: rgba(0, 0, 0, 0.6);
+        }
+      }
+    </style>
   </head>
   <body>
+    <!-- Skip Link for Accessibility -->
+    <a href="#root" class="skip-link">Skip to main content</a>
+
+    <!-- ARIA Live Region -->
+    <div id="af-live" aria-live="polite" aria-atomic="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
+
+    <!-- Trust Bar -->
+    <div class="af-trust-bar" id="af-trust-bar">
+      <span>&#x1F4E6; <span class="af-stat-num" id="af-stat-agents">--</span> Agents</span>
+      <span>&#x1F468;&#x200D;&#x1F4BB; <span class="af-stat-num" id="af-stat-creators">--</span> Creators</span>
+      <span>&#x2B07;&#xFE0F; <span class="af-stat-num" id="af-stat-downloads">--</span> Downloads</span>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="af-toast-container" id="af-toast-container"></div>
+
+    <!-- Main App Root -->
     <div id="root"></div>
+
+    <!-- Back to Top -->
+    <button class="back-to-top" id="af-back-to-top" aria-label="Back to top" title="Back to top">&#8593;</button>
+
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- AgentForge Enhancements -->
+    <script>
+    (function() {
+      'use strict';
+
+      /* === Fix 1: Scroll to top on hash navigation === */
+      window.addEventListener('hashchange', function() {
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      });
+
+      /* === Fix 2: Back to Top Button === */
+      var backToTop = document.getElementById('af-back-to-top');
+      if (backToTop) {
+        window.addEventListener('scroll', function() {
+          if (window.scrollY > 400) {
+            backToTop.classList.add('visible');
+          } else {
+            backToTop.classList.remove('visible');
+          }
+        }, { passive: true });
+        backToTop.addEventListener('click', function() {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
+
+      /* === Fix 3: Toast System === */
+      window.afToast = function(message, duration) {
+        duration = duration || 3000;
+        var container = document.getElementById('af-toast-container');
+        if (!container) return;
+        var toast = document.createElement('div');
+        toast.className = 'af-toast';
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(function() {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateX(100%)';
+          toast.style.transition = 'all 0.3s';
+          setTimeout(function() { toast.remove(); }, 300);
+        }, duration);
+      };
+
+      /* === Fix 4: Section Fade-in with IntersectionObserver === */
+      function initFadeIn() {
+        var sections = document.querySelectorAll('section, [class*="section"], [class*="Section"]');
+        if (!sections.length) {
+          setTimeout(initFadeIn, 500);
+          return;
+        }
+        sections.forEach(function(s) { s.classList.add('af-section'); });
+        var observer = new IntersectionObserver(function(entries) {
+          entries.forEach(function(entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('af-visible');
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+        sections.forEach(function(s) { observer.observe(s); });
+      }
+      setTimeout(initFadeIn, 800);
+
+      /* === Fix 5: Trust Bar Stats === */
+      function updateTrustBar() {
+        var agentsEl = document.getElementById('af-stat-agents');
+        var creatorsEl = document.getElementById('af-stat-creators');
+        var downloadsEl = document.getElementById('af-stat-downloads');
+        var statsEls = document.querySelectorAll('[class*="stat"], [class*="Stat"], [class*="metric"], [class*="Metric"]');
+        var foundStats = false;
+        statsEls.forEach(function(el) {
+          var text = el.textContent || '';
+          if (text.match(/\d+/) && text.toLowerCase().includes('agent') && agentsEl) {
+            agentsEl.textContent = text.match(/[\d,.]+k?/i)?.[0] || '--';
+            foundStats = true;
+          }
+          if (text.match(/\d+/) && text.toLowerCase().includes('creator') && creatorsEl) {
+            creatorsEl.textContent = text.match(/[\d,.]+k?/i)?.[0] || '--';
+            foundStats = true;
+          }
+          if (text.match(/\d+/) && text.toLowerCase().includes('download') && downloadsEl) {
+            downloadsEl.textContent = text.match(/[\d,.]+k?/i)?.[0] || '--';
+            foundStats = true;
+          }
+        });
+        if (!foundStats) {
+          setTimeout(updateTrustBar, 2000);
+        }
+      }
+      setTimeout(updateTrustBar, 1500);
+
+      /* === Fix 6: Keyboard Shortcuts === */
+      var kbdModalOpen = false;
+      function showKbdModal() {
+        if (kbdModalOpen) return;
+        kbdModalOpen = true;
+        var overlay = document.createElement('div');
+        overlay.className = 'af-kbd-modal-overlay';
+        overlay.innerHTML = '<div class="af-kbd-modal">' +
+          '<h3>Keyboard Shortcuts</h3>' +
+          '<div class="af-kbd-row"><span>Search</span><span class="af-kbd-key">/</span></div>' +
+          '<div class="af-kbd-row"><span>Home</span><span class="af-kbd-key">g h</span></div>' +
+          '<div class="af-kbd-row"><span>Explore</span><span class="af-kbd-key">g e</span></div>' +
+          '<div class="af-kbd-row"><span>Agents</span><span class="af-kbd-key">g a</span></div>' +
+          '<div class="af-kbd-row"><span>Feed</span><span class="af-kbd-key">g f</span></div>' +
+          '<div class="af-kbd-row"><span>Creators</span><span class="af-kbd-key">g c</span></div>' +
+          '<div class="af-kbd-row"><span>Docs</span><span class="af-kbd-key">g d</span></div>' +
+          '<div class="af-kbd-row"><span>This Help</span><span class="af-kbd-key">?</span></div>' +
+          '<div style="margin-top:1rem;text-align:center;font-size:0.75rem;opacity:0.5">Press Esc to close</div>' +
+          '</div>';
+        overlay.addEventListener('click', function(e) {
+          if (e.target === overlay) closeKbdModal(overlay);
+        });
+        document.body.appendChild(overlay);
+      }
+      function closeKbdModal(overlay) {
+        kbdModalOpen = false;
+        if (overlay) overlay.remove();
+      }
+
+      var lastKey = '';
+      document.addEventListener('keydown', function(e) {
+        var tag = (e.target.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+
+        if (e.key === 'Escape' && kbdModalOpen) {
+          var modal = document.querySelector('.af-kbd-modal-overlay');
+          if (modal) closeKbdModal(modal);
+          return;
+        }
+        if (e.key === '?') { showKbdModal(); return; }
+        if (e.key === '/') {
+          e.preventDefault();
+          var searchInput = document.querySelector('input[type="search"], input[placeholder*="search" i], input[placeholder*="Search" i]');
+          if (searchInput) searchInput.focus();
+          return;
+        }
+        if (lastKey === 'g') {
+          var routes = { h: '#/', e: '#/explore', a: '#/agents', f: '#/feed', c: '#/creators', d: '#/docs' };
+          if (routes[e.key]) {
+            window.location.hash = routes[e.key];
+          }
+          lastKey = '';
+          return;
+        }
+        lastKey = e.key;
+        setTimeout(function() { lastKey = ''; }, 800);
+      });
+
+      /* === Fix 7: MCP Badge Detection === */
+      function addMcpBadges() {
+        var cards = document.querySelectorAll('[class*="card"] h3, [class*="Card"] h3, [class*="card"] h4, [class*="Card"] h4');
+        cards.forEach(function(title) {
+          if (title.dataset.mcpChecked) return;
+          title.dataset.mcpChecked = 'true';
+          var text = (title.textContent || '').toLowerCase();
+          if (text.includes('mcp') || text.includes('api') || text.includes('tool')) {
+            var badge = document.createElement('span');
+            badge.className = 'af-mcp-badge';
+            badge.textContent = 'MCP Ready';
+            title.parentNode.insertBefore(badge, title.nextSibling);
+          }
+        });
+      }
+      setTimeout(addMcpBadges, 2000);
+
+      /* === Fix 8: ARIA Live Announcer for Navigation === */
+      window.addEventListener('hashchange', function() {
+        var liveRegion = document.getElementById('af-live');
+        if (liveRegion) {
+          var page = window.location.hash.replace('#/', '') || 'home';
+          liveRegion.textContent = 'Navigated to ' + page + ' page';
+        }
+      });
+
+      /* === Fix 9: Form Accessibility === */
+      function enhanceForms() {
+        var inputs = document.querySelectorAll('input:not([aria-label]):not([aria-labelledby])');
+        inputs.forEach(function(input) {
+          var placeholder = input.getAttribute('placeholder');
+          if (placeholder && !input.getAttribute('aria-label')) {
+            input.setAttribute('aria-label', placeholder);
+          }
+        });
+      }
+      setTimeout(enhanceForms, 1500);
+      var formObserver = new MutationObserver(function() { setTimeout(enhanceForms, 300); });
+      formObserver.observe(document.body, { childList: true, subtree: true });
+
+    })();
+    </script>
   </body>
 </html>
