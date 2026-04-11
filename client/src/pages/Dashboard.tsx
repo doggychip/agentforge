@@ -107,6 +107,9 @@ interface AgentFormData {
   price: string;
   tags: string[];
   apiEndpoint: string;
+  hfSpaceUrl: string;
+  hfModelId: string;
+  backendType: string;
 }
 
 const emptyForm: AgentFormData = {
@@ -118,6 +121,9 @@ const emptyForm: AgentFormData = {
   price: "",
   tags: [],
   apiEndpoint: "",
+  hfSpaceUrl: "",
+  hfModelId: "",
+  backendType: "self-hosted",
 };
 
 type SortKey = "name" | "downloads" | "stars" | "reviewCount" | "avgRating" | "pricing";
@@ -314,6 +320,9 @@ export default function Dashboard() {
         price: data.pricing !== "free" && data.price ? Math.round(parseFloat(data.price) * 100) : null,
         tags: data.tags,
         apiEndpoint: data.apiEndpoint || null,
+        hfSpaceUrl: data.hfSpaceUrl || null,
+        hfModelId: data.hfModelId || null,
+        backendType: data.backendType,
       };
       const res = await apiRequest("POST", "/api/creators/me/agents", body);
       return res.json();
@@ -341,6 +350,9 @@ export default function Dashboard() {
         price: data.pricing !== "free" && data.price ? Math.round(parseFloat(data.price) * 100) : null,
         tags: data.tags,
         apiEndpoint: data.apiEndpoint || null,
+        hfSpaceUrl: data.hfSpaceUrl || null,
+        hfModelId: data.hfModelId || null,
+        backendType: data.backendType,
       };
       const res = await apiRequest("PUT", `/api/creators/me/agents/${id}`, body);
       return res.json();
@@ -394,6 +406,9 @@ export default function Dashboard() {
       price: agent.price ? (agent.price / 100).toString() : "",
       tags: agent.tags,
       apiEndpoint: agent.apiEndpoint || "",
+      hfSpaceUrl: agent.hfSpaceUrl || "",
+      hfModelId: agent.hfModelId || "",
+      backendType: agent.backendType || "self-hosted",
     });
     setTagInput("");
     setDialogOpen(true);
@@ -1057,6 +1072,47 @@ export default function Dashboard() {
                 className="text-sm"
                 data-testid="input-agent-api-endpoint"
               />
+            </div>
+
+            {/* Hugging Face Space URL */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">HF Space URL</label>
+              <Input
+                value={formData.hfSpaceUrl}
+                onChange={(e) => setFormData({ ...formData, hfSpaceUrl: e.target.value })}
+                placeholder="https://huggingface.co/spaces/org/space-name"
+                className="text-sm"
+                data-testid="input-agent-hf-space-url"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">Embeds an interactive "Try it" tab on the agent page</p>
+            </div>
+
+            {/* Hugging Face Model ID */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">HF Model ID</label>
+              <Input
+                value={formData.hfModelId}
+                onChange={(e) => setFormData({ ...formData, hfModelId: e.target.value })}
+                placeholder="meta-llama/Llama-3-8B"
+                className="text-sm"
+                data-testid="input-agent-hf-model-id"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">Shows a "Powered by" model info card on the Overview tab</p>
+            </div>
+
+            {/* Backend Type */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Backend Type</label>
+              <Select value={formData.backendType} onValueChange={(v) => setFormData({ ...formData, backendType: v })}>
+                <SelectTrigger className="text-sm" data-testid="select-agent-backend-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="self-hosted">Self-hosted</SelectItem>
+                  <SelectItem value="hf-inference">HF Inference</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-1">HF Inference proxies requests through Hugging Face's Inference API</p>
             </div>
           </div>
 

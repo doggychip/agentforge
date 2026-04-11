@@ -45,6 +45,9 @@ export const agents = pgTable("agents", {
   stars: integer("stars").notNull().default(0),
   downloads: integer("downloads").notNull().default(0),
   apiEndpoint: text("api_endpoint"),
+  hfSpaceUrl: text("hf_space_url"), // Hugging Face Space embed URL
+  hfModelId: text("hf_model_id"), // Hugging Face model ID (e.g. "meta-llama/Llama-3-8B")
+  backendType: text("backend_type").notNull().default("self-hosted"), // "self-hosted" | "hf-inference"
   status: text("status").notNull().default("active"), // "active" | "beta" | "deprecated"
   featured: boolean("featured").notNull().default(false),
 });

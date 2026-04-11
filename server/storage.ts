@@ -551,7 +551,7 @@ class MemStorage implements IStorage {
   }
   async createAgent(insertAgent: InsertAgent) {
     const id = randomUUID();
-    const agent: Agent = { ...insertAgent, id, stars: 0, downloads: 0, status: "active", featured: false, longDescription: insertAgent.longDescription ?? null, price: insertAgent.price ?? null, currency: insertAgent.currency ?? "USD", apiEndpoint: insertAgent.apiEndpoint ?? null };
+    const agent: Agent = { ...insertAgent, id, stars: 0, downloads: 0, status: "active", featured: false, longDescription: insertAgent.longDescription ?? null, price: insertAgent.price ?? null, currency: insertAgent.currency ?? "USD", apiEndpoint: insertAgent.apiEndpoint ?? null, hfSpaceUrl: insertAgent.hfSpaceUrl ?? null, hfModelId: insertAgent.hfModelId ?? null, backendType: insertAgent.backendType ?? "self-hosted" };
     this.agentsMap.set(id, agent);
     return agent;
   }

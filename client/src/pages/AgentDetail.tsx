@@ -12,7 +12,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Star, Download, Bot, Wrench, FileText, Globe, ArrowLeft, Share2, X as XIcon,
-  Shield, Copy, Code, Cpu, MessageSquare, CheckCircle, Terminal,
+  Shield, Copy, Code, Cpu, MessageSquare, CheckCircle, Terminal, Play, Box,
+  Loader2,
 } from "lucide-react";
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -58,6 +59,89 @@ function StarRating({ rating, size = 14, interactive = false, onRate }: {
           onClick={() => interactive && onRate?.(i)}
         />
       ))}
+    </div>
+  );
+}
+
+interface HfModelMeta {
+  id: string;
+  pipeline_tag?: string;
+  library_name?: string;
+  downloads?: number;
+  likes?: number;
+  tags?: string[];
+  cardData?: {
+    license?: string;
+  };
+  safetensors?: {
+    total?: number;
+    parameters?: Record<string, number>;
+  };
+}
+
+function HfModelCard({ modelId }: { modelId: string }) {
+  const { data: model, isLoading, error } = useQuery<HfModelMeta>({
+    queryKey: ["hf-model", modelId],
+    queryFn: async () => {
+      const res = await fetch(`https://huggingface.co/api/models/${modelId}`);
+      if (!res.ok) throw new Error("Model not found");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-4 flex items-center gap-3">
+        <Loader2 size={16} className="animate-spin text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">Loading model info...</span>
+      </div>
+    );
+  }
+
+  if (error || !model) return null;
+
+  const totalParams = model.safetensors?.parameters
+    ? Object.values(model.safetensors.parameters).reduce((a, b) => a + b, 0)
+    : null;
+
+  const license = model.cardData?.license || model.tags?.find(t => t.startsWith("license:"))?.replace("license:", "");
+
+  function formatParams(n: number) {
+    if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+    if (n >= 1e6) return `${(n / 1e6).toFixed(0)}M`;
+    return n.toLocaleString();
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 space-y-2" data-testid="hf-model-card">
+      <div className="flex items-center gap-2 mb-1">
+        <Box size={14} className="text-primary" />
+        <h3 className="text-sm font-semibold text-foreground">Powered by</h3>
+      </div>
+      <a
+        href={`https://huggingface.co/${modelId}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-sm font-medium text-primary hover:underline no-underline"
+      >
+        {model.id}
+      </a>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
+        {totalParams && (
+          <span>Parameters: <span className="font-medium text-foreground">{formatParams(totalParams)}</span></span>
+        )}
+        {license && (
+          <span>License: <span className="font-medium text-foreground">{license}</span></span>
+        )}
+        {model.downloads != null && (
+          <span>Downloads: <span className="font-medium text-foreground">{model.downloads.toLocaleString()}</span></span>
+        )}
+        {model.pipeline_tag && (
+          <span>Task: <span className="font-medium text-foreground">{model.pipeline_tag}</span></span>
+        )}
+      </div>
     </div>
   );
 }
@@ -340,6 +424,11 @@ export default function AgentDetail() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="bg-muted/50" data-testid="tabs-agent">
           <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
+          {agent.hfSpaceUrl && (
+            <TabsTrigger value="tryit" className="text-xs gap-1">
+              <Play size={11} /> Try it
+            </TabsTrigger>
+          )}
           <TabsTrigger value="api" className="text-xs">Quick Start</TabsTrigger>
           <TabsTrigger value="reviews" className="text-xs">
             Reviews {reviewCount > 0 && `(${reviewCount})`}
@@ -384,7 +473,39 @@ export default function AgentDetail() {
               </div>
             </div>
           )}
+
+          {/* Powered by HF Model card */}
+          {agent.hfModelId && <HfModelCard modelId={agent.hfModelId} />}
         </TabsContent>
+
+        {/* Try it tab — HF Space embed */}
+        {agent.hfSpaceUrl && (
+          <TabsContent value="tryit">
+            <div className="rounded-lg border border-border bg-card overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
+                <Play size={14} className="text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Interactive Demo</h3>
+                <a
+                  href={agent.hfSpaceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto text-xs text-muted-foreground hover:text-foreground no-underline"
+                >
+                  Open on Hugging Face &rarr;
+                </a>
+              </div>
+              <iframe
+                src={agent.hfSpaceUrl.replace("huggingface.co/spaces/", "huggingface.co/spaces/").replace(/\/?$/, "?__theme=dark")}
+                title={`${agent.name} — HF Space`}
+                className="w-full border-0"
+                style={{ minHeight: "560px" }}
+                allow="accelerometer; camera; clipboard-write; encrypted-media; gyroscope; microphone"
+                sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+                data-testid="iframe-hf-space"
+              />
+            </div>
+          </TabsContent>
+        )}
 
         <TabsContent value="api">
           <div className="space-y-4">

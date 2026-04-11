@@ -346,7 +346,7 @@ export async function registerRoutes(
       if (!agent) return res.status(404).json({ message: "Agent not found" });
       if (agent.creatorId !== creator.id) return res.status(403).json({ message: "Not your agent" });
 
-      const allowedFields = ["name", "description", "longDescription", "category", "pricing", "price", "tags", "apiEndpoint", "status"] as const;
+      const allowedFields = ["name", "description", "longDescription", "category", "pricing", "price", "tags", "apiEndpoint", "hfSpaceUrl", "hfModelId", "backendType", "status"] as const;
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
@@ -1082,6 +1082,79 @@ export async function registerRoutes(
     const subs = await storage.getSubscriptions(userId);
     const activeSub = subs.find(s => s.agentId === req.params.id && s.status === "active");
     res.json({ subscribed: !!activeSub, subscription: activeSub || null });
+  });
+
+  // ─── HF Inference Proxy ──────────────────────────────────────
+
+  app.post("/api/agents/:id/invoke", requireApiKeyOrSession, async (req, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) return res.status(404).json({ message: "Agent not found" });
+
+      // Check subscription auth
+      const userId = getAuthUserId(req)!;
+      if (agent.pricing !== "free") {
+        const subs = await storage.getSubscriptions(userId);
+        const activeSub = subs.find(s => s.agentId === agent.id && s.status === "active");
+        if (!activeSub) {
+          return res.status(403).json({ message: "Active subscription required" });
+        }
+      }
+
+      if (agent.backendType !== "hf-inference") {
+        return res.status(400).json({ message: "This agent does not use HF Inference. Use the agent's own API endpoint." });
+      }
+
+      if (!agent.hfModelId) {
+        return res.status(400).json({ message: "No HF model configured for this agent" });
+      }
+
+      const hfToken = process.env.HF_API_TOKEN;
+      if (!hfToken) {
+        return res.status(503).json({ message: "HF Inference not configured. Set HF_API_TOKEN env var." });
+      }
+
+      // Forward to HF Inference Providers API
+      const hfRes = await fetch("https://router.huggingface.co/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${hfToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: agent.hfModelId,
+          ...req.body,
+        }),
+      });
+
+      const contentType = hfRes.headers.get("content-type") || "application/json";
+      res.status(hfRes.status).set("Content-Type", contentType);
+
+      if (!hfRes.ok) {
+        const errBody = await hfRes.text();
+        return res.send(errBody);
+      }
+
+      // Stream support: if client requested streaming, pipe through
+      if (req.body.stream) {
+        if (hfRes.body) {
+          const reader = hfRes.body as any;
+          // Node 18+ fetch returns a web ReadableStream — pipe it
+          const { Readable } = await import("stream");
+          const nodeStream = Readable.fromWeb(reader);
+          nodeStream.pipe(res);
+        } else {
+          const body = await hfRes.text();
+          res.send(body);
+        }
+      } else {
+        const data = await hfRes.json();
+        res.json(data);
+      }
+    } catch (error: any) {
+      console.error("HF Inference proxy error:", error);
+      res.status(502).json({ message: "Failed to proxy to HF Inference", error: error.message });
+    }
   });
 
   // ─── API Key Management ──────────────────────────────────────
