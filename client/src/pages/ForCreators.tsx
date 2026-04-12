@@ -1,14 +1,17 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import type { Agent, Creator } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   DollarSign, CreditCard, Bot, Users, Zap, Code, Shield, Terminal,
   BarChart3, Key, Bell, FileText, ArrowRight, Globe, Cpu, Package,
-  TrendingUp, Network,
+  TrendingUp, Network, Star,
 } from "lucide-react";
 import { translations, type Locale, type Translations } from "./for-creators-i18n";
+import { AgentAvatar } from "@/components/AgentAvatar";
 
 /* ------------------------------------------------------------------ */
 /*  Tiny helpers                                                       */
@@ -355,7 +358,171 @@ function Community({ t, locale, setLocale }: { t: Translations; locale: Locale; 
 }
 
 /* ------------------------------------------------------------------ */
-/*  Section 8: Bottom CTA                                              */
+/*  Section 8: Featured Agents                                         */
+/* ------------------------------------------------------------------ */
+
+function formatPrice(price: number | null, pricing: string) {
+  if (pricing === "free" || !price) return "Free";
+  if (pricing === "usage") return `$${(price / 100).toFixed(2)}/call`;
+  return `$${(price / 100).toFixed(0)}/mo`;
+}
+
+function formatNumber(n: number) {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return n.toString();
+}
+
+function FeaturedAgents() {
+  const { data: agents } = useQuery<Agent[]>({
+    queryKey: ["/api/agents/featured"],
+  });
+
+  const displayed = agents?.slice(0, 6) ?? [];
+
+  if (displayed.length === 0) return null;
+
+  return (
+    <section className="mx-auto max-w-5xl px-4 py-16" data-testid="section-featured-agents">
+      <div className="text-center mb-10">
+        <SectionHeading>Popular agents</SectionHeading>
+        <SectionSub>Discover top-rated agents built by our creator community</SectionSub>
+      </div>
+
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {displayed.map((agent) => (
+          <Link
+            key={agent.id}
+            href={`/agents/${agent.id}`}
+            className="group block no-underline"
+          >
+            <Card className="border-border/60 bg-card/50 h-full transition-all duration-200 hover:border-primary/30 hover:shadow-md">
+              <CardContent className="pt-5 pb-4">
+                <div className="flex items-start gap-3 mb-3">
+                  <AgentAvatar name={agent.name} className="w-10 h-10" />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                      {agent.name}
+                    </h3>
+                    <Badge variant="secondary" className="text-[10px] font-medium uppercase tracking-wider mt-1">
+                      {agent.category}
+                    </Badge>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mb-3">
+                  {agent.description}
+                </p>
+                <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Star size={12} className="text-yellow-500" />
+                    {formatNumber(agent.stars)}
+                  </span>
+                  <span className={`text-xs font-semibold ${agent.pricing === "free" ? "text-emerald-500" : "text-primary"}`}>
+                    {formatPrice(agent.price, agent.pricing)}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
+      <div className="text-center mt-8">
+        <Link href="/agents" className="no-underline">
+          <Button variant="outline" className="gap-2 text-sm font-medium">
+            View all agents <ArrowRight size={14} />
+          </Button>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Section 9: Featured Creators                                       */
+/* ------------------------------------------------------------------ */
+
+function FeaturedCreators() {
+  const { data: creators } = useQuery<Creator[]>({
+    queryKey: ["/api/creators/featured"],
+  });
+
+  const displayed = creators?.slice(0, 6) ?? [];
+
+  if (displayed.length === 0) return null;
+
+  return (
+    <section className="bg-muted/30 border-y border-border/40" data-testid="section-featured-creators">
+      <div className="mx-auto max-w-5xl px-4 py-16">
+        <div className="text-center mb-10">
+          <SectionHeading>Top creators</SectionHeading>
+          <SectionSub>Meet the builders powering the AgentForge ecosystem</SectionSub>
+        </div>
+
+        <div className="flex items-center justify-center gap-8 flex-wrap">
+          {displayed.map((creator) => (
+            <Link
+              key={creator.id}
+              href={`/creators/${creator.id}`}
+              className="group no-underline flex flex-col items-center gap-2 w-24"
+            >
+              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-border/60 group-hover:border-primary/50 transition-colors">
+                <img
+                  src={creator.avatar}
+                  alt={creator.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className="text-xs font-medium text-foreground text-center truncate w-full group-hover:text-primary transition-colors">
+                {creator.name}
+              </span>
+            </Link>
+          ))}
+        </div>
+
+        <div className="text-center mt-8">
+          <Link href="/creators" className="no-underline">
+            <Button variant="outline" className="gap-2 text-sm font-medium">
+              Discover creators <ArrowRight size={14} />
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Section 10: Final CTA                                              */
+/* ------------------------------------------------------------------ */
+
+function FinalCTA() {
+  return (
+    <section className="relative overflow-hidden" data-testid="section-final-cta">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-primary/5 pointer-events-none" />
+      <div className="relative mx-auto max-w-3xl px-4 py-20 text-center">
+        <h2 className="text-xl font-bold tracking-tight text-foreground mb-3">Ready to get started?</h2>
+        <p className="text-sm text-muted-foreground max-w-lg mx-auto mb-8 leading-relaxed">
+          Join a growing community of creators and users building the future of AI agents. Whether you want to discover powerful tools or share your own creations, AgentForge is the place.
+        </p>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link href="/agents" className="no-underline">
+            <Button size="lg" variant="outline" className="gap-2 font-medium">
+              <Bot size={16} /> Browse Agents
+            </Button>
+          </Link>
+          <Link href="/become-creator" className="no-underline">
+            <Button size="lg" className="gap-2 font-medium">
+              Become a Creator <ArrowRight size={16} />
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Section 11: Bottom CTA                                             */
 /* ------------------------------------------------------------------ */
 
 function BottomCTA({ t }: { t: Translations }) {
@@ -409,6 +576,9 @@ export default function ForCreators() {
       <HowItWorks t={t} />
       <BuiltForDevs t={t} />
       <Community t={t} locale={locale} setLocale={setLocale} />
+      <FeaturedAgents />
+      <FeaturedCreators />
+      <FinalCTA />
       <BottomCTA t={t} />
     </div>
   );

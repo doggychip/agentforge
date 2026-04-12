@@ -306,13 +306,13 @@ export default function Agents() {
 
       {/* Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="h-48 rounded-lg" />
+            <Skeleton key={i} className="h-56 rounded-xl" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((agent) => {
             const creator = creatorsMap.get(agent.creatorId);
             return (
@@ -322,16 +322,16 @@ export default function Agents() {
                 className="group block no-underline"
                 data-testid={`card-agent-${agent.id}`}
               >
-                <div className="rounded-lg border border-border bg-card p-4 h-full transition-all duration-200 hover:border-primary/30 hover:shadow-md">
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <AgentAvatar name={agent.name} className="w-9 h-9" />
+                <div className="rounded-xl border border-border bg-card p-5 h-full transition-all duration-200 hover:border-primary/40 hover:shadow-lg hover:-translate-y-0.5">
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <AgentAvatar name={agent.name} className="w-11 h-11" />
                       <div className="min-w-0">
-                        <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                        <h3 className="text-base font-semibold text-foreground truncate group-hover:text-primary transition-colors">
                           {agent.name}
                         </h3>
                         {creator && (
-                          <p className="text-xs text-muted-foreground truncate">
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">
                             by {creator.name}
                           </p>
                         )}
@@ -342,32 +342,35 @@ export default function Agents() {
                     </Badge>
                   </div>
 
-                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mb-3">
+                  <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2 mb-4">
                     {agent.description}
                   </p>
 
-                  <div className="flex flex-wrap gap-1 mb-3">
+                  <div className="flex flex-wrap gap-1.5 mb-4">
                     {agent.tags.slice(0, 3).map((tag) => (
-                      <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+                      <span key={tag} className="text-[11px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-medium">
                         {tag}
                       </span>
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-border">
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between pt-3 border-t border-border">
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
-                        <Star size={12} className="text-yellow-500" />
+                        <Star size={14} className="text-yellow-500" />
                         {formatNumber(agent.stars)}
                       </span>
                       <span className="flex items-center gap-1">
-                        <Download size={12} />
+                        <Download size={14} />
                         {formatNumber(agent.downloads)}
                       </span>
                     </div>
-                    <span className={`text-xs font-semibold ${agent.pricing === "free" ? "text-emerald-500" : "text-primary"}`}>
+                    <Badge
+                      variant={agent.pricing === "free" ? "secondary" : "default"}
+                      className={`text-xs font-semibold px-2.5 py-0.5 ${agent.pricing === "free" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : ""}`}
+                    >
                       {formatPrice(agent.price, agent.pricing)}
-                    </span>
+                    </Badge>
                   </div>
                 </div>
               </Link>
