@@ -374,10 +374,13 @@ function formatNumber(n: number) {
 
 function FeaturedAgents() {
   const { data: agents } = useQuery<Agent[]>({
-    queryKey: ["/api/agents/featured"],
+    queryKey: ["/api/agents"],
   });
 
-  const displayed = agents?.slice(0, 6) ?? [];
+  // Show top agents by stars
+  const displayed = (agents || [])
+    .sort((a, b) => b.stars - a.stars)
+    .slice(0, 6);
 
   if (displayed.length === 0) return null;
 
@@ -443,10 +446,13 @@ function FeaturedAgents() {
 
 function FeaturedCreators() {
   const { data: creators } = useQuery<Creator[]>({
-    queryKey: ["/api/creators/featured"],
+    queryKey: ["/api/creators"],
   });
 
-  const displayed = creators?.slice(0, 6) ?? [];
+  // Show top creators by subscriber count
+  const displayed = (creators || [])
+    .sort((a, b) => b.subscribers - a.subscribers)
+    .slice(0, 6);
 
   if (displayed.length === 0) return null;
 
