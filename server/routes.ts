@@ -6,6 +6,10 @@ import pg from "pg";
 import crypto from "crypto";
 import Stripe from "stripe";
 import nodemailer from "nodemailer";
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import { generateSecret as otpGenerateSecret, generateURI as otpGenerateURI, verifySync as otpVerifySync } from "otplib";
+import QRCode from "qrcode";
 import { storage } from "./storage";
 import { CONTENT_SOURCES } from "./content-sources";
 import { registerSchema, loginSchema, insertAgentSchema, type SafeUser } from "@shared/schema";
@@ -28,9 +32,9 @@ declare module "express-session" {
   }
 }
 
-function toSafeUser(user: { id: string; username: string; email: string; displayName: string; avatar: string | null; role: string; password: string }): SafeUser {
-  const { password, ...safe } = user;
-  return safe;
+function toSafeUser(user: { id: string; username: string; email: string; displayName: string; avatar: string | null; role: string; password: string; totpSecret?: string | null; [key: string]: any }): SafeUser {
+  const { password, totpSecret, ...safe } = user;
+  return safe as SafeUser;
 }
 
 // Middleware to require auth
@@ -211,6 +215,13 @@ export async function registerRoutes(
         displayName: data.displayName,
       });
 
+      // Generate email verification token
+      const verifyToken = crypto.randomBytes(32).toString("hex");
+      emailVerificationTokens.set(verifyToken, { userId: user.id, email: user.email, expiresAt: Date.now() + 24 * 3600_000 });
+      const origin = `${req.protocol}://${req.get("host")}`;
+      const verifyUrl = `${origin}/#/verify-email?token=${verifyToken}`;
+      console.log(`[auth] Email verification link for ${user.email}: ${verifyUrl}`);
+
       // Set session — explicit save for Postgres-backed store
       req.session.userId = user.id;
       req.session.save((err) => {
@@ -278,6 +289,13 @@ export async function registerRoutes(
       // Clear attempts on success
       loginAttempts.delete(ip);
 
+      // If 2FA is enabled, require TOTP verification before granting session
+      if (user.totpEnabled && user.totpSecret) {
+        const tempToken = crypto.randomBytes(32).toString("hex");
+        pending2faLogins.set(tempToken, { userId: user.id, expiresAt: Date.now() + 300_000 }); // 5 min
+        return res.json({ requires2fa: true, tempToken });
+      }
+
       req.session.userId = user.id;
       req.session.save((err) => {
         if (err) {
@@ -312,8 +330,12 @@ export async function registerRoutes(
     }
   });
 
-  // ─── Forgot Password ──────────────────────────────────────
+  // ─── Token stores ─────────────────────────────────────────
   const passwordResetTokens = new Map<string, { userId: string; expiresAt: number }>();
+  const emailVerificationTokens = new Map<string, { userId: string; email: string; expiresAt: number }>();
+  const pending2faLogins = new Map<string, { userId: string; expiresAt: number }>();
+
+  // ─── Forgot Password ──────────────────────────────────────
 
   app.post("/api/auth/forgot-password", async (req, res) => {
     try {
@@ -384,6 +406,233 @@ export async function registerRoutes(
       res.json({ message: "Password has been reset. You can now log in." });
     } catch (error: any) {
       console.error("Reset password error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ─── Google OAuth ─────────────────────────────────────────
+  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+  if (googleClientId && googleClientSecret) {
+    passport.use(new GoogleStrategy({
+      clientID: googleClientId,
+      clientSecret: googleClientSecret,
+      callbackURL: "/api/auth/google/callback",
+    }, async (_accessToken, _refreshToken, profile, done) => {
+      try {
+        const email = profile.emails?.[0]?.value;
+        if (!email) return done(new Error("No email from Google"));
+
+        // Check if user exists by Google ID or email
+        let user = await storage.getUserByGoogleId(profile.id);
+        if (!user) {
+          user = await storage.getUserByEmail(email);
+          if (user) {
+            // Link Google account to existing user
+            await storage.updateUser(user.id, { googleId: profile.id, emailVerified: true });
+            user = await storage.getUser(user.id);
+          } else {
+            // Create new user
+            const randomPassword = crypto.randomBytes(32).toString("hex");
+            user = await storage.createUser({
+              username: email.split("@")[0] + "_" + Math.random().toString(36).slice(2, 6),
+              email,
+              password: await bcrypt.hash(randomPassword, 12),
+              displayName: profile.displayName || email.split("@")[0],
+            });
+            await storage.updateUser(user!.id, { googleId: profile.id, emailVerified: true, avatar: profile.photos?.[0]?.value });
+            user = await storage.getUser(user!.id);
+          }
+        }
+        done(null, user!);
+      } catch (err) {
+        done(err as Error);
+      }
+    }));
+
+    app.get("/api/auth/google", passport.authenticate("google", { scope: ["profile", "email"], session: false }));
+
+    app.get("/api/auth/google/callback", (req, res, next) => {
+      passport.authenticate("google", { session: false }, (err: any, user: any) => {
+        if (err || !user) {
+          return res.redirect("/#/auth?error=google_failed");
+        }
+        req.session.userId = user.id;
+        req.session.save(() => {
+          res.redirect("/#/");
+        });
+      })(req, res, next);
+    });
+  }
+
+  // Check which auth providers are available
+  app.get("/api/auth/providers", (_req, res) => {
+    res.json({
+      google: !!googleClientId,
+      email: true,
+    });
+  });
+
+  // ─── Email Verification ──────────────────────────────────
+  app.post("/api/auth/send-verification", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (user.emailVerified) return res.json({ message: "Email already verified" });
+
+      // Generate token
+      const token = crypto.randomBytes(32).toString("hex");
+      emailVerificationTokens.set(token, { userId: user.id, email: user.email, expiresAt: Date.now() + 24 * 3600_000 });
+
+      const origin = `${req.protocol}://${req.get("host")}`;
+      const verifyUrl = `${origin}/#/verify-email?token=${token}`;
+
+      // Try to send email if SMTP is configured
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+
+      if (smtpHost && smtpUser && smtpPass) {
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: parseInt(process.env.SMTP_PORT || "587"),
+          secure: process.env.SMTP_PORT === "465",
+          auth: { user: smtpUser, pass: smtpPass },
+        });
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || smtpUser,
+          to: user.email,
+          subject: "AgentForge — Verify Your Email",
+          html: `<p>Hi ${user.displayName},</p><p>Click the link below to verify your email (expires in 24 hours):</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>`,
+        });
+        console.log(`[auth] Verification email sent to ${user.email}`);
+      } else {
+        console.log(`[auth] Email verification link for ${user.email}: ${verifyUrl}`);
+      }
+
+      res.json({ message: "Verification email sent" });
+    } catch (error: any) {
+      console.error("Send verification error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/auth/verify-email", async (req, res) => {
+    try {
+      const { token } = req.body;
+      if (!token) return res.status(400).json({ message: "Token is required" });
+
+      const entry = emailVerificationTokens.get(token);
+      if (!entry || Date.now() > entry.expiresAt) {
+        emailVerificationTokens.delete(token);
+        return res.status(400).json({ message: "Invalid or expired verification token" });
+      }
+
+      await storage.updateUser(entry.userId, { emailVerified: true });
+      emailVerificationTokens.delete(token);
+
+      res.json({ message: "Email verified successfully" });
+    } catch (error: any) {
+      console.error("Verify email error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ─── 2FA (TOTP) ──────────────────────────────────────────
+  app.post("/api/auth/2fa/setup", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (user.totpEnabled) return res.status(400).json({ message: "2FA is already enabled" });
+
+      const secret = otpGenerateSecret();
+      // Store the secret temporarily (not yet enabled)
+      await storage.updateUser(user.id, { totpSecret: secret });
+
+      const otpauth = otpGenerateURI({ issuer: "AgentForge", label: user.email, secret });
+      const qrCodeDataUrl = await QRCode.toDataURL(otpauth);
+
+      res.json({ secret, qrCode: qrCodeDataUrl });
+    } catch (error: any) {
+      console.error("2FA setup error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/auth/2fa/enable", requireAuth, async (req, res) => {
+    try {
+      const { code } = req.body;
+      if (!code) return res.status(400).json({ message: "TOTP code is required" });
+
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (user.totpEnabled) return res.status(400).json({ message: "2FA is already enabled" });
+      if (!user.totpSecret) return res.status(400).json({ message: "Run 2FA setup first" });
+
+      const isValid = otpVerifySync({ token: code, secret: user.totpSecret }).valid;
+      if (!isValid) return res.status(400).json({ message: "Invalid TOTP code" });
+
+      await storage.updateUser(user.id, { totpEnabled: true });
+      res.json({ message: "2FA enabled successfully" });
+    } catch (error: any) {
+      console.error("2FA enable error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/auth/2fa/disable", requireAuth, async (req, res) => {
+    try {
+      const { code } = req.body;
+      if (!code) return res.status(400).json({ message: "TOTP code is required" });
+
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (!user.totpEnabled || !user.totpSecret) return res.status(400).json({ message: "2FA is not enabled" });
+
+      const isValid = otpVerifySync({ token: code, secret: user.totpSecret }).valid;
+      if (!isValid) return res.status(400).json({ message: "Invalid TOTP code" });
+
+      await storage.updateUser(user.id, { totpEnabled: false, totpSecret: null });
+      res.json({ message: "2FA disabled successfully" });
+    } catch (error: any) {
+      console.error("2FA disable error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/auth/2fa/verify-login", async (req, res) => {
+    try {
+      const { tempToken, code } = req.body;
+      if (!tempToken || !code) return res.status(400).json({ message: "Temp token and TOTP code are required" });
+
+      const entry = pending2faLogins.get(tempToken);
+      if (!entry || Date.now() > entry.expiresAt) {
+        pending2faLogins.delete(tempToken);
+        return res.status(400).json({ message: "Invalid or expired 2FA session" });
+      }
+
+      const user = await storage.getUser(entry.userId);
+      if (!user || !user.totpSecret) {
+        pending2faLogins.delete(tempToken);
+        return res.status(400).json({ message: "User not found" });
+      }
+
+      const isValid = otpVerifySync({ token: code, secret: user.totpSecret }).valid;
+      if (!isValid) return res.status(400).json({ message: "Invalid TOTP code" });
+
+      pending2faLogins.delete(tempToken);
+
+      req.session.userId = user.id;
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error (2fa-login):", err);
+          return res.status(500).json({ message: "Session error" });
+        }
+        res.json(toSafeUser(user));
+      });
+    } catch (error: any) {
+      console.error("2FA verify-login error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -1252,6 +1501,39 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Billing History ──────────────────────────────────────────
+
+  app.get("/api/me/billing", requireAuth, async (req, res) => {
+    try {
+      if (!stripe) return res.json([]);
+
+      const user = await storage.getUser(req.session.userId!);
+      if (!user?.stripeCustomerId) return res.json([]);
+
+      // Fetch recent charges from Stripe
+      const charges = await stripe.charges.list({
+        customer: user.stripeCustomerId,
+        limit: 50,
+      });
+
+      const records = charges.data.map(charge => ({
+        id: charge.id,
+        date: new Date(charge.created * 1000).toISOString(),
+        description: charge.description || "Agent subscription",
+        amount: charge.amount,
+        currency: charge.currency.toUpperCase(),
+        status: charge.status === "succeeded" ? "paid" as const
+          : charge.status === "pending" ? "pending" as const
+          : "failed" as const,
+      }));
+
+      res.json(records);
+    } catch (error: any) {
+      console.error("Billing fetch error:", error);
+      res.json([]);
+    }
+  });
+
   // ─── HF Inference Proxy ──────────────────────────────────────
 
   app.post("/api/agents/:id/invoke", requireApiKeyOrSession, async (req, res) => {
@@ -1438,6 +1720,135 @@ export async function registerRoutes(
     const revoked = await storage.revokeApiKey(req.params.id, req.session.userId!);
     if (!revoked) return res.status(404).json({ message: "Key not found" });
     res.json({ success: true });
+  });
+
+  // ─── Playground Conversations ────────────────────────────────
+
+  // Create a new conversation (or return existing for anonymous)
+  app.post("/api/conversations", async (req, res) => {
+    const { agentId } = req.body;
+    if (!agentId) return res.status(400).json({ message: "agentId required" });
+
+    const agent = await storage.getAgent(agentId);
+    if (!agent) return res.status(404).json({ message: "Agent not found" });
+
+    const userId = req.session.userId || null;
+    const conv = await storage.createConversation({ agentId, userId });
+    res.json(conv);
+  });
+
+  // List conversations for current user
+  app.get("/api/conversations", requireAuth, async (req, res) => {
+    const convs = await storage.getConversationsByUser(req.session.userId!);
+    res.json(convs);
+  });
+
+  // Get messages for a conversation
+  app.get("/api/conversations/:id/messages", async (req, res) => {
+    const conv = await storage.getConversation(req.params.id);
+    if (!conv) return res.status(404).json({ message: "Conversation not found" });
+
+    // Only allow owner to see their conversations (or anonymous ones)
+    if (conv.userId && conv.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const msgs = await storage.getMessages(conv.id);
+    res.json(msgs);
+  });
+
+  // Send a message and get agent response
+  app.post("/api/conversations/:id/messages", async (req, res) => {
+    const conv = await storage.getConversation(req.params.id);
+    if (!conv) return res.status(404).json({ message: "Conversation not found" });
+
+    if (conv.userId && conv.userId !== req.session.userId) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const { content } = req.body;
+    if (!content || typeof content !== "string") {
+      return res.status(400).json({ message: "content required" });
+    }
+
+    // Anonymous trial: limit to 3 messages per conversation
+    if (!conv.userId) {
+      const existing = await storage.getMessages(conv.id);
+      const userMsgCount = existing.filter(m => m.role === "user").length;
+      if (userMsgCount >= 3) {
+        return res.status(403).json({ message: "Sign up to continue this conversation", code: "TRIAL_LIMIT" });
+      }
+    }
+
+    // Save user message
+    const userMsg = await storage.createMessage({ conversationId: conv.id, role: "user", content });
+
+    // Auto-set title from first message
+    if (!conv.title) {
+      const title = content.length > 60 ? content.slice(0, 57) + "..." : content;
+      await storage.updateConversation(conv.id, { title, updatedAt: new Date() });
+    } else {
+      await storage.updateConversation(conv.id, { updatedAt: new Date() });
+    }
+
+    // Invoke the agent
+    const agent = await storage.getAgent(conv.agentId);
+    if (!agent) return res.status(404).json({ message: "Agent not found" });
+
+    // Build message history for the agent
+    const allMessages = await storage.getMessages(conv.id);
+    const chatHistory = allMessages.map(m => ({ role: m.role, content: m.content }));
+
+    let assistantContent = "";
+
+    try {
+      if (agent.backendType === "hf-inference" && agent.hfModelId) {
+        const hfToken = process.env.HF_API_TOKEN;
+        if (!hfToken) {
+          assistantContent = "I'm currently unavailable — the inference service is not configured. Please try again later.";
+        } else {
+          const hfRes = await fetch("https://router.huggingface.co/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${hfToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: agent.hfModelId, messages: chatHistory }),
+          });
+          if (hfRes.ok) {
+            const data = await hfRes.json();
+            assistantContent = data.choices?.[0]?.message?.content || "No response from model.";
+          } else {
+            assistantContent = "Sorry, I encountered an error processing your request.";
+          }
+        }
+      } else if (agent.backendType === "self-hosted" && agent.apiEndpoint) {
+        // Validate no SSRF
+        const targetUrl = new URL(agent.apiEndpoint);
+        if (["localhost", "127.0.0.1", "0.0.0.0"].includes(targetUrl.hostname)) {
+          assistantContent = "This agent's endpoint is not accessible.";
+        } else {
+          const proxyRes = await fetch(agent.apiEndpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: chatHistory }),
+          });
+          if (proxyRes.ok) {
+            const data = await proxyRes.json();
+            assistantContent = data.choices?.[0]?.message?.content || data.response || data.content || JSON.stringify(data);
+          } else {
+            assistantContent = "Sorry, I encountered an error processing your request.";
+          }
+        }
+      } else {
+        // Demo fallback for agents without a configured backend
+        assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nThis is a demo conversation. To get full functionality, the agent creator needs to configure an inference backend.\n\nFeel free to explore what I can do!`;
+      }
+    } catch (err: any) {
+      console.error("Playground invoke error:", err);
+      assistantContent = "Sorry, something went wrong. Please try again.";
+    }
+
+    const assistantMsg = await storage.createMessage({ conversationId: conv.id, role: "assistant", content: assistantContent });
+
+    res.json({ userMessage: userMsg, assistantMessage: assistantMsg });
   });
 
   // ─── Content Sources ────────────────────────────────────────

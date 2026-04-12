@@ -12,8 +12,17 @@ import {
   User as UserIcon, Heart, MessageSquare, Users, Bot,
   Shield, ArrowRight, PenSquare, Clock, ExternalLink,
   CreditCard, DollarSign, Loader2, CheckCircle, AlertCircle,
-  Banknote,
+  Banknote, Receipt,
 } from "lucide-react";
+
+type BillingRecord = {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  currency: string;
+  status: "paid" | "pending" | "failed";
+};
 
 function formatNumber(n: number) {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
@@ -68,6 +77,16 @@ export default function Profile() {
     queryKey: ["/api/me/agent-subscriptions"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/me/agent-subscriptions");
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  // Billing history
+  const { data: billingRecords, isLoading: loadingBilling } = useQuery<BillingRecord[]>({
+    queryKey: ["/api/me/billing"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/me/billing");
       return res.json();
     },
     enabled: !!user,
@@ -323,6 +342,9 @@ export default function Profile() {
           <TabsTrigger value="comments" className="text-xs flex-1 gap-1.5">
             <MessageSquare size={13} /> Comments
           </TabsTrigger>
+          <TabsTrigger value="billing" className="text-xs flex-1 gap-1.5">
+            <CreditCard size={13} /> Billing
+          </TabsTrigger>
         </TabsList>
 
         {/* Agent Subscriptions Tab */}
@@ -497,6 +519,56 @@ export default function Profile() {
             <div className="text-center py-12 rounded-lg border border-dashed border-border">
               <MessageSquare size={28} className="mx-auto mb-3 text-muted-foreground opacity-40" />
               <p className="text-sm text-muted-foreground">No comments yet</p>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Billing Tab */}
+        <TabsContent value="billing">
+          {loadingBilling ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
+            </div>
+          ) : billingRecords && billingRecords.length > 0 ? (
+            <div className="rounded-lg border border-border bg-card overflow-hidden">
+              {/* Table header */}
+              <div className="grid grid-cols-4 gap-2 px-4 py-2.5 bg-muted/50 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                <span>Date</span>
+                <span>Description</span>
+                <span className="text-right">Amount</span>
+                <span className="text-right">Status</span>
+              </div>
+              {/* Table rows */}
+              <div className="divide-y divide-border">
+                {billingRecords.map((record) => (
+                  <div key={record.id} className="grid grid-cols-4 gap-2 px-4 py-3 items-center text-sm">
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(record.date).toLocaleDateString()}
+                    </span>
+                    <span className="text-foreground text-xs truncate">{record.description}</span>
+                    <span className="text-right text-xs font-medium text-foreground">
+                      {(record.amount / 100).toLocaleString("en-US", {
+                        style: "currency",
+                        currency: record.currency || "USD",
+                      })}
+                    </span>
+                    <div className="text-right">
+                      <Badge
+                        variant={record.status === "paid" ? "secondary" : record.status === "pending" ? "outline" : "destructive"}
+                        className="text-[10px]"
+                      >
+                        {record.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-12 rounded-lg border border-dashed border-border">
+              <Receipt size={28} className="mx-auto mb-3 text-muted-foreground opacity-40" />
+              <p className="text-sm text-muted-foreground mb-1">No payment history</p>
+              <p className="text-xs text-muted-foreground">Your billing records will appear here.</p>
             </div>
           )}
         </TabsContent>

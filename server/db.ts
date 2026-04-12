@@ -74,6 +74,20 @@ export async function migrateIfNeeded() {
       console.log("[db] Agents table not yet created, HF columns will be included in initial migration");
     }
 
+    // Add OAuth / 2FA columns to users
+    try {
+      await client.query(`
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "google_id" text;
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "github_id" text;
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "email_verified" boolean NOT NULL DEFAULT false;
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "totp_secret" text;
+        ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "totp_enabled" boolean NOT NULL DEFAULT false;
+      `);
+      console.log("[db] OAuth / 2FA columns ensured");
+    } catch {
+      console.log("[db] Users table not yet created, OAuth/2FA columns will be included in initial migration");
+    }
+
     // Ensure api_usage_logs table exists
     await client.query(`
       CREATE TABLE IF NOT EXISTS "api_usage_logs" (
@@ -89,6 +103,29 @@ export async function migrateIfNeeded() {
       CREATE INDEX IF NOT EXISTS "idx_usage_logs_user_created" ON "api_usage_logs" ("user_id", "created_at");
     `);
     console.log("[db] API usage logs table ensured");
+
+    // Ensure conversations & messages tables exist (playground feature)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "conversations" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" varchar,
+        "agent_id" varchar NOT NULL,
+        "title" text,
+        "created_at" timestamp NOT NULL DEFAULT now(),
+        "updated_at" timestamp NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS "idx_conversations_user" ON "conversations" ("user_id", "updated_at" DESC);
+
+      CREATE TABLE IF NOT EXISTS "messages" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "conversation_id" varchar NOT NULL,
+        "role" text NOT NULL,
+        "content" text NOT NULL,
+        "created_at" timestamp NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS "idx_messages_conversation" ON "messages" ("conversation_id", "created_at");
+    `);
+    console.log("[db] Conversations & messages tables ensured");
 
     // Check if main data tables already exist
     const result = await client.query(
@@ -118,7 +155,12 @@ export async function migrateIfNeeded() {
         "display_name" text NOT NULL,
         "avatar" text,
         "role" text NOT NULL DEFAULT 'user',
-        "stripe_customer_id" text
+        "stripe_customer_id" text,
+        "google_id" text,
+        "github_id" text,
+        "email_verified" boolean NOT NULL DEFAULT false,
+        "totp_secret" text,
+        "totp_enabled" boolean NOT NULL DEFAULT false
       );
 
       CREATE TABLE IF NOT EXISTS "creators" (
@@ -226,6 +268,25 @@ export async function migrateIfNeeded() {
         "read" boolean NOT NULL DEFAULT false,
         "created_at" timestamp NOT NULL DEFAULT now()
       );
+
+      CREATE TABLE IF NOT EXISTS "conversations" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" varchar,
+        "agent_id" varchar NOT NULL,
+        "title" text,
+        "created_at" timestamp NOT NULL DEFAULT now(),
+        "updated_at" timestamp NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS "idx_conversations_user" ON "conversations" ("user_id", "updated_at" DESC);
+
+      CREATE TABLE IF NOT EXISTS "messages" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "conversation_id" varchar NOT NULL,
+        "role" text NOT NULL,
+        "content" text NOT NULL,
+        "created_at" timestamp NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS "idx_messages_conversation" ON "messages" ("conversation_id", "created_at");
     `);
 
     console.log("[db] Migration complete — all tables created");

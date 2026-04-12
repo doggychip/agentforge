@@ -377,6 +377,12 @@ export default function AgentDetail() {
               </p>
             </div>
 
+            <Link href={`/playground/${agent.id}`}>
+              <Button className="w-full h-9 text-sm font-medium gap-1.5" variant="default">
+                <Play size={14} /> Try it now
+              </Button>
+            </Link>
+
             {/* Installed state for free agents */}
             {(subStatus?.subscribed || subscribeMutation.isSuccess || checkoutStatus === "success") && agent.pricing === "free" ? (
               <div className="flex items-center justify-center gap-2 h-9 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm font-medium" data-testid="badge-installed">
@@ -385,6 +391,7 @@ export default function AgentDetail() {
               </div>
             ) : (
               <Button
+                variant="outline"
                 className="w-full h-9 text-sm font-medium"
                 onClick={() => subscribeMutation.mutate()}
                 disabled={subscribeMutation.isPending || subStatus?.subscribed}

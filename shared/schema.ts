@@ -12,6 +12,11 @@ export const users = pgTable("users", {
   avatar: text("avatar"),
   role: text("role").notNull().default("user"), // "user" | "creator" | "admin"
   stripeCustomerId: text("stripe_customer_id"), // Stripe customer ID for subscribers
+  googleId: text("google_id"),
+  githubId: text("github_id"),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  totpSecret: text("totp_secret"),
+  totpEnabled: boolean("totp_enabled").notNull().default(false),
 });
 
 // Creators on the platform
@@ -153,6 +158,25 @@ export const apiUsageLogs = pgTable("api_usage_logs", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Playground conversations
+export const conversations = pgTable("conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"), // null for anonymous trial
+  agentId: varchar("agent_id").notNull(),
+  title: text("title"), // auto-generated from first message
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Conversation messages
+export const messages = pgTable("messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull(),
+  role: text("role").notNull(), // "user" | "assistant"
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Auth schemas
 export const registerSchema = z.object({
   username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, hyphens, and underscores"),
@@ -204,5 +228,13 @@ export const insertApiUsageLogSchema = createInsertSchema(apiUsageLogs).omit({ i
 export type ApiUsageLog = typeof apiUsageLogs.$inferSelect;
 export type InsertApiUsageLog = z.infer<typeof insertApiUsageLogSchema>;
 
-// Safe user type (no password)
-export type SafeUser = Omit<User, "password">;
+export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, updatedAt: true });
+export type Conversation = typeof conversations.$inferSelect;
+export type InsertConversation = z.infer<typeof insertConversationSchema>;
+
+export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true });
+export type Message = typeof messages.$inferSelect;
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
+
+// Safe user type (no password or TOTP secret)
+export type SafeUser = Omit<User, "password" | "totpSecret">;

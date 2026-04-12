@@ -10,8 +10,11 @@ import {
   type Notification, type InsertNotification,
   type ApiKey, type InsertApiKey,
   type ApiUsageLog, type InsertApiUsageLog,
+  type Conversation, type InsertConversation,
+  type Message, type InsertMessage,
   users, creators, agents, posts, postLikes, comments, subscriptions,
   creatorSubscriptions, reviews, notifications, apiKeys, apiUsageLogs,
+  conversations, messages,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -22,6 +25,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByGoogleId(googleId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
 
   getCreators(): Promise<Creator[]>;
@@ -104,6 +108,16 @@ export interface IStorage {
     dailyCounts: { date: string; count: number }[];
   }>;
 
+  // Conversations
+  createConversation(conv: InsertConversation): Promise<Conversation>;
+  getConversation(id: string): Promise<Conversation | undefined>;
+  getConversationsByUser(userId: string): Promise<Conversation[]>;
+  updateConversation(id: string, data: Partial<Conversation>): Promise<Conversation | undefined>;
+
+  // Messages
+  createMessage(msg: InsertMessage): Promise<Message>;
+  getMessages(conversationId: string): Promise<Message[]>;
+
   seed(): Promise<void>;
 }
 
@@ -119,6 +133,10 @@ class PgStorage implements IStorage {
   }
   async getUserByEmail(email: string) {
     const [user] = await db!.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+  async getUserByGoogleId(googleId: string) {
+    const [user] = await db!.select().from(users).where(eq(users.googleId, googleId));
     return user;
   }
   async createUser(insertUser: InsertUser) {
@@ -426,6 +444,30 @@ class PgStorage implements IStorage {
     };
   }
 
+  // ─── Conversations ────────────────────────────────────────
+  async createConversation(conv: InsertConversation) {
+    const [row] = await db!.insert(conversations).values(conv).returning();
+    return row;
+  }
+  async getConversation(id: string) {
+    const [row] = await db!.select().from(conversations).where(eq(conversations.id, id));
+    return row;
+  }
+  async getConversationsByUser(userId: string) {
+    return db!.select().from(conversations).where(eq(conversations.userId, userId)).orderBy(desc(conversations.updatedAt));
+  }
+  async updateConversation(id: string, data: Partial<Conversation>) {
+    const [row] = await db!.update(conversations).set(data).where(eq(conversations.id, id)).returning();
+    return row;
+  }
+  async createMessage(msg: InsertMessage) {
+    const [row] = await db!.insert(messages).values(msg).returning();
+    return row;
+  }
+  async getMessages(conversationId: string) {
+    return db!.select().from(messages).where(eq(messages.conversationId, conversationId)).orderBy(messages.createdAt);
+  }
+
   async seed() {
     try {
       // Check what already exists
@@ -478,6 +520,8 @@ class MemStorage implements IStorage {
   private notificationsMap: Map<string, Notification>;
   private apiKeysMap: Map<string, ApiKey>;
   private apiUsageLogsArr: ApiUsageLog[];
+  private conversationsMap: Map<string, Conversation>;
+  private messagesMap: Map<string, Message>;
 
   constructor() {
     this.usersMap = new Map();
@@ -492,6 +536,8 @@ class MemStorage implements IStorage {
     this.notificationsMap = new Map();
     this.apiKeysMap = new Map();
     this.apiUsageLogsArr = [];
+    this.conversationsMap = new Map();
+    this.messagesMap = new Map();
   }
 
   async seed() {
@@ -507,9 +553,12 @@ class MemStorage implements IStorage {
   async getUserByEmail(email: string) {
     return Array.from(this.usersMap.values()).find(u => u.email === email);
   }
+  async getUserByGoogleId(googleId: string) {
+    return Array.from(this.usersMap.values()).find(u => u.googleId === googleId);
+  }
   async createUser(insertUser: InsertUser) {
     const id = randomUUID();
-    const user: User = { ...insertUser, id, avatar: null, role: "user", stripeCustomerId: null };
+    const user: User = { ...insertUser, id, avatar: null, role: "user", stripeCustomerId: null, googleId: null, githubId: null, emailVerified: false, totpSecret: null, totpEnabled: false };
     this.usersMap.set(id, user);
     return user;
   }
@@ -806,6 +855,39 @@ class MemStorage implements IStorage {
       .sort((a, b) => a.date.localeCompare(b.date));
 
     return { today, thisWeek, thisMonth, byKey, dailyCounts };
+  }
+
+  // ─── Conversations ────────────────────────────────────────
+  async createConversation(conv: InsertConversation) {
+    const id = randomUUID();
+    const now = new Date();
+    const row: Conversation = { id, userId: conv.userId ?? null, agentId: conv.agentId, title: conv.title ?? null, createdAt: now, updatedAt: now };
+    this.conversationsMap.set(id, row);
+    return row;
+  }
+  async getConversation(id: string) { return this.conversationsMap.get(id); }
+  async getConversationsByUser(userId: string) {
+    return Array.from(this.conversationsMap.values())
+      .filter(c => c.userId === userId)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }
+  async updateConversation(id: string, data: Partial<Conversation>) {
+    const existing = this.conversationsMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...data };
+    this.conversationsMap.set(id, updated);
+    return updated;
+  }
+  async createMessage(msg: InsertMessage) {
+    const id = randomUUID();
+    const row: Message = { id, conversationId: msg.conversationId, role: msg.role, content: msg.content, createdAt: new Date() };
+    this.messagesMap.set(id, row);
+    return row;
+  }
+  async getMessages(conversationId: string) {
+    return Array.from(this.messagesMap.values())
+      .filter(m => m.conversationId === conversationId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 }
 
