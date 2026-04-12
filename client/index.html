@@ -145,17 +145,7 @@
       .back-to-top.visible { opacity: 1; transform: translateY(0); }
       .back-to-top:hover { background: #4aa99b; box-shadow: 0 6px 20px rgba(91, 191, 181, 0.5); }
 
-      /* Section Fade-in Animation - FIXED: only pending sections are hidden */
-      .af-section.af-pending {
-        opacity: 0;
-        transform: translateY(30px);
-        transition: opacity 0.6s ease-out, transform 0.6s ease-out;
-      }
-      .af-section.af-visible {
-        opacity: 1;
-        transform: translateY(0);
-        transition: opacity 0.6s ease-out, transform 0.6s ease-out;
-      }
+      /* Section Fade-in Animation — disabled, causes blank gaps with async React content */
 
       /* Card Hover Effects */
       [class*="card"], [class*="Card"] {
@@ -335,38 +325,7 @@
         }, duration);
       };
 
-      /* === Fix 4: Section Fade-in with IntersectionObserver (FIXED) === */
-      function initFadeIn() {
-        var sections = document.querySelectorAll('section, [class*="section"], [class*="Section"]');
-        if (!sections.length) {
-          setTimeout(initFadeIn, 500);
-          return;
-        }
-        var viewportHeight = window.innerHeight;
-        sections.forEach(function(s) {
-          s.classList.add('af-section');
-          var rect = s.getBoundingClientRect();
-          /* Only hide sections that are below the viewport */
-          if (rect.top > viewportHeight) {
-            s.classList.add('af-pending');
-          }
-        });
-        var observer = new IntersectionObserver(function(entries) {
-          entries.forEach(function(entry) {
-            if (entry.isIntersecting) {
-              entry.target.classList.remove('af-pending');
-              entry.target.classList.add('af-visible');
-              observer.unobserve(entry.target);
-            }
-          });
-        }, { threshold: 0.05, rootMargin: '0px 0px -30px 0px' });
-        sections.forEach(function(s) {
-          if (s.classList.contains('af-pending')) {
-            observer.observe(s);
-          }
-        });
-      }
-      setTimeout(initFadeIn, 800);
+      /* Section fade-in removed — incompatible with async React rendering */
 
       /* === Fix 5: Trust Bar Stats === */
       function updateTrustBar() {
