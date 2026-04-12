@@ -62,13 +62,17 @@ export async function migrateIfNeeded() {
       ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "rate_limit_day" integer NOT NULL DEFAULT 10000;
     `);
 
-    // Add Hugging Face columns to agents (for existing deployments)
-    await client.query(`
-      ALTER TABLE "agents" ADD COLUMN IF NOT EXISTS "hf_space_url" text;
-      ALTER TABLE "agents" ADD COLUMN IF NOT EXISTS "hf_model_id" text;
-      ALTER TABLE "agents" ADD COLUMN IF NOT EXISTS "backend_type" text NOT NULL DEFAULT 'self-hosted';
-    `);
-    console.log("[db] Hugging Face columns ensured");
+    // Add Hugging Face columns to agents (safe for fresh DBs where agents table may not exist yet)
+    try {
+      await client.query(`
+        ALTER TABLE "agents" ADD COLUMN IF NOT EXISTS "hf_space_url" text;
+        ALTER TABLE "agents" ADD COLUMN IF NOT EXISTS "hf_model_id" text;
+        ALTER TABLE "agents" ADD COLUMN IF NOT EXISTS "backend_type" text NOT NULL DEFAULT 'self-hosted';
+      `);
+      console.log("[db] Hugging Face columns ensured");
+    } catch {
+      console.log("[db] Agents table not yet created, HF columns will be included in initial migration");
+    }
 
     // Ensure api_usage_logs table exists
     await client.query(`
