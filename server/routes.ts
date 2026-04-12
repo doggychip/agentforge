@@ -102,7 +102,7 @@ export async function registerRoutes(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       sameSite: "lax",
@@ -229,20 +229,54 @@ export async function registerRoutes(
     }
   });
 
-  // Login
+  // Login rate limiting by IP
+  const loginAttempts = new Map<string, { count: number; blockedUntil: number }>();
+  const LOGIN_MAX_ATTEMPTS = 5;
+  const LOGIN_BLOCK_MINUTES = 15;
+
   app.post("/api/auth/login", async (req, res) => {
     try {
+      const ip = req.ip || req.socket.remoteAddress || "unknown";
+      const now = Date.now();
+      const attempt = loginAttempts.get(ip);
+
+      if (attempt && now < attempt.blockedUntil) {
+        const retryAfter = Math.ceil((attempt.blockedUntil - now) / 1000);
+        res.set("Retry-After", String(retryAfter));
+        return res.status(429).json({
+          message: `Too many login attempts. Try again in ${Math.ceil(retryAfter / 60)} minutes.`,
+        });
+      }
+
       const data = loginSchema.parse(req.body);
 
       const user = await storage.getUserByEmail(data.email);
       if (!user) {
+        // Track failed attempt
+        const entry = loginAttempts.get(ip) || { count: 0, blockedUntil: 0 };
+        entry.count++;
+        if (entry.count >= LOGIN_MAX_ATTEMPTS) {
+          entry.blockedUntil = now + LOGIN_BLOCK_MINUTES * 60_000;
+          entry.count = 0;
+        }
+        loginAttempts.set(ip, entry);
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
       const validPassword = await bcrypt.compare(data.password, user.password);
       if (!validPassword) {
+        const entry = loginAttempts.get(ip) || { count: 0, blockedUntil: 0 };
+        entry.count++;
+        if (entry.count >= LOGIN_MAX_ATTEMPTS) {
+          entry.blockedUntil = now + LOGIN_BLOCK_MINUTES * 60_000;
+          entry.count = 0;
+        }
+        loginAttempts.set(ip, entry);
         return res.status(401).json({ message: "Invalid email or password" });
       }
+
+      // Clear attempts on success
+      loginAttempts.delete(ip);
 
       req.session.userId = user.id;
       req.session.save((err) => {
@@ -1110,13 +1144,13 @@ export async function registerRoutes(
 
     let event: Stripe.Event;
 
+    if (!stripe) return res.status(503).json({ message: "Stripe not configured" });
+
     try {
-      if (webhookSecret && sig && (req as any).rawBody) {
-        event = stripe!.webhooks.constructEvent((req as any).rawBody, sig, webhookSecret);
-      } else {
-        // In test mode without webhook secret, just use the parsed body
-        event = req.body as Stripe.Event;
+      if (!webhookSecret || !sig || !(req as any).rawBody) {
+        return res.status(400).json({ message: "Missing webhook signature or secret" });
       }
+      event = stripe.webhooks.constructEvent((req as any).rawBody, sig, webhookSecret);
     } catch (err: any) {
       console.error("Webhook signature verification failed:", err.message);
       return res.status(400).json({ message: `Webhook Error: ${err.message}` });
@@ -1178,6 +1212,44 @@ export async function registerRoutes(
     const subs = await storage.getSubscriptions(userId);
     const activeSub = subs.find(s => s.agentId === req.params.id && s.status === "active");
     res.json({ subscribed: !!activeSub, subscription: activeSub || null });
+  });
+
+  // ─── User Agent Subscriptions ─────────────────────────────────
+
+  app.get("/api/me/agent-subscriptions", requireAuth, async (req, res) => {
+    try {
+      const subs = await storage.getSubscriptions(req.session.userId!);
+      const activeSubs = subs.filter(s => s.status === "active");
+      // Enrich with agent details
+      const enriched = await Promise.all(activeSubs.map(async (sub) => {
+        const agent = await storage.getAgent(sub.agentId);
+        return { ...sub, agent: agent || null };
+      }));
+      res.json(enriched);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch subscriptions" });
+    }
+  });
+
+  app.post("/api/me/agent-subscriptions/:id/cancel", requireAuth, async (req, res) => {
+    try {
+      const subs = await storage.getSubscriptions(req.session.userId!);
+      const sub = subs.find(s => s.id === req.params.id && s.status === "active");
+      if (!sub) return res.status(404).json({ message: "Subscription not found" });
+
+      // Cancel on Stripe if it's a paid subscription
+      if (sub.stripeSubscriptionId && stripe) {
+        await stripe.subscriptions.update(sub.stripeSubscriptionId, {
+          cancel_at_period_end: true,
+        });
+      }
+
+      await storage.updateSubscription(sub.id, { status: "cancelled" });
+      res.json({ message: "Subscription cancelled" });
+    } catch (error: any) {
+      console.error("Cancel subscription error:", error);
+      res.status(500).json({ message: "Failed to cancel subscription" });
+    }
   });
 
   // ─── HF Inference Proxy ──────────────────────────────────────

@@ -17,6 +17,7 @@ import {
   X as XIcon, Search,
 } from "lucide-react";
 import { useState, useMemo } from "react";
+import { AgentAvatar } from "@/components/AgentAvatar";
 
 const categoryIcons: Record<string, React.ReactNode> = {
   agent: <Bot size={14} />,
@@ -324,9 +325,7 @@ export default function Agents() {
                 <div className="rounded-lg border border-border bg-card p-4 h-full transition-all duration-200 hover:border-primary/30 hover:shadow-md">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0 text-primary">
-                        {categoryIcons[agent.category]}
-                      </div>
+                      <AgentAvatar name={agent.name} className="w-9 h-9" />
                       <div className="min-w-0">
                         <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
                           {agent.name}

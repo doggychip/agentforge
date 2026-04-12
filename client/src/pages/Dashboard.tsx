@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AgentAvatar } from "@/components/AgentAvatar";
 import {
   Dialog,
   DialogContent,
@@ -786,9 +787,7 @@ export default function Dashboard() {
                 >
                   {/* Name + pricing badge */}
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0 text-primary">
-                      {categoryIcons[ab.category] || <Bot size={12} />}
-                    </div>
+                    <AgentAvatar name={ab.name} className="w-7 h-7" />
                     <div className="min-w-0">
                       <span className="font-medium text-foreground truncate block text-[13px]">{ab.name}</span>
                       <span className={`text-[10px] font-semibold ${

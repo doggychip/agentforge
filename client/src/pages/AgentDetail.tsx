@@ -15,6 +15,7 @@ import {
   Shield, Copy, Code, Cpu, MessageSquare, CheckCircle, Terminal, Play, Box,
   Loader2,
 } from "lucide-react";
+import { AgentAvatar } from "@/components/AgentAvatar";
 
 const categoryIcons: Record<string, React.ReactNode> = {
   agent: <Bot size={18} />,
@@ -316,9 +317,7 @@ export default function AgentDetail() {
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-6 mb-8">
-        <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 text-primary">
-          {categoryIcons[agent.category]}
-        </div>
+        <AgentAvatar name={agent.name} className="w-14 h-14" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2.5 mb-1 flex-wrap">
             <h1 className="text-xl font-bold text-foreground">{agent.name}</h1>

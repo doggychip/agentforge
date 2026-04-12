@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { apiRequest } from "@/lib/queryClient";
+import { AgentAvatar } from "@/components/AgentAvatar";
 
 const categoryIcons: Record<string, React.ReactNode> = {
   agent: <Bot size={14} />,
@@ -53,9 +54,7 @@ function AgentCard({ agent, creator }: { agent: Agent; creator?: Creator }) {
       <div className="rounded-lg border border-border bg-card p-4 h-full transition-all duration-200 hover:border-primary/30 hover:shadow-md">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0 text-primary">
-              {categoryIcons[agent.category]}
-            </div>
+            <AgentAvatar name={agent.name} className="w-9 h-9" />
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
                 {agent.name}
@@ -307,9 +306,7 @@ export default function Home() {
                         onClick={() => setDropdownOpen(false)}
                         data-testid={`dropdown-agent-${agent.id}`}
                       >
-                        <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0 text-primary">
-                          {categoryIcons[agent.category]}
-                        </div>
+                        <AgentAvatar name={agent.name} className="w-7 h-7" />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-foreground truncate">{agent.name}</p>
                           {creator && (

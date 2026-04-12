@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Creator, Post, Comment } from "@shared/schema";
+import type { Creator, Post, Comment, Agent, Subscription } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -61,6 +61,25 @@ export default function Profile() {
       return res.json();
     },
     enabled: !!user,
+  });
+
+  // Agent subscriptions
+  const { data: agentSubs, isLoading: loadingAgentSubs } = useQuery<(Subscription & { agent: Agent | null })[]>({
+    queryKey: ["/api/me/agent-subscriptions"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/me/agent-subscriptions");
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const cancelSubMutation = useMutation({
+    mutationFn: async (subId: string) => {
+      await apiRequest("POST", `/api/me/agent-subscriptions/${subId}/cancel`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/me/agent-subscriptions"] });
+    },
   });
 
   const { data: creatorProfile } = useQuery<Creator | null>({
@@ -290,10 +309,13 @@ export default function Profile() {
       )}
 
       {/* Content Tabs */}
-      <Tabs defaultValue="subscriptions" className="space-y-4">
+      <Tabs defaultValue="agents" className="space-y-4">
         <TabsList className="bg-muted/50 w-full" data-testid="tabs-profile">
+          <TabsTrigger value="agents" className="text-xs flex-1 gap-1.5">
+            <Bot size={13} /> Agents
+          </TabsTrigger>
           <TabsTrigger value="subscriptions" className="text-xs flex-1 gap-1.5">
-            <Users size={13} /> Subscriptions
+            <Users size={13} /> Creators
           </TabsTrigger>
           <TabsTrigger value="liked" className="text-xs flex-1 gap-1.5">
             <Heart size={13} /> Liked
@@ -303,7 +325,63 @@ export default function Profile() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Subscriptions Tab */}
+        {/* Agent Subscriptions Tab */}
+        <TabsContent value="agents">
+          {loadingAgentSubs ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+            </div>
+          ) : agentSubs && agentSubs.length > 0 ? (
+            <div className="rounded-lg border border-border bg-card divide-y divide-border">
+              {agentSubs.map((sub) => (
+                <div key={sub.id} className="flex items-center gap-3 p-3.5">
+                  <Link
+                    href={sub.agent ? `/agents/${sub.agent.id}` : "#"}
+                    className="flex items-center gap-3 flex-1 min-w-0 no-underline"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <Bot size={18} className="text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {sub.agent?.name || "Unknown Agent"}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {sub.plan === "free" ? "Free" : `$${((sub.agent?.price || 0) / 100).toFixed(0)}/mo`}
+                        {" \u00b7 "}{sub.status}
+                      </p>
+                    </div>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs shrink-0 text-destructive hover:text-destructive"
+                    onClick={() => {
+                      if (confirm("Cancel this subscription?")) {
+                        cancelSubMutation.mutate(sub.id);
+                      }
+                    }}
+                    disabled={cancelSubMutation.isPending}
+                  >
+                    {cancelSubMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : "Cancel"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 rounded-lg border border-dashed border-border">
+              <Bot size={28} className="mx-auto mb-3 text-muted-foreground opacity-40" />
+              <p className="text-sm text-muted-foreground mb-3">No agent subscriptions yet</p>
+              <Link href="/agents">
+                <Button variant="outline" size="sm" className="text-xs gap-1.5">
+                  Browse agents <ArrowRight size={12} />
+                </Button>
+              </Link>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Creator Subscriptions Tab */}
         <TabsContent value="subscriptions">
           {loadingSubs ? (
             <div className="space-y-3">
