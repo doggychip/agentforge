@@ -329,29 +329,19 @@
 
       /* === Fix 5: Trust Bar Stats === */
       function updateTrustBar() {
-        var agentsEl = document.getElementById('af-stat-agents');
-        var creatorsEl = document.getElementById('af-stat-creators');
-        var downloadsEl = document.getElementById('af-stat-downloads');
-        var statsEls = document.querySelectorAll('[class*="stat"], [class*="Stat"], [class*="metric"], [class*="Metric"]');
-        var foundStats = false;
-        statsEls.forEach(function(el) {
-          var text = el.textContent || '';
-          if (text.match(/\d+/) && text.toLowerCase().includes('agent') && agentsEl) {
-            agentsEl.textContent = text.match(/[\d,.]+k?/i)?.[0] || '--';
-            foundStats = true;
-          }
-          if (text.match(/\d+/) && text.toLowerCase().includes('creator') && creatorsEl) {
-            creatorsEl.textContent = text.match(/[\d,.]+k?/i)?.[0] || '--';
-            foundStats = true;
-          }
-          if (text.match(/\d+/) && text.toLowerCase().includes('download') && downloadsEl) {
-            downloadsEl.textContent = text.match(/[\d,.]+k?/i)?.[0] || '--';
-            foundStats = true;
-          }
-        });
-        if (!foundStats) setTimeout(updateTrustBar, 2000);
+        fetch('/api/stats')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var agentsEl = document.getElementById('af-stat-agents');
+            var creatorsEl = document.getElementById('af-stat-creators');
+            var downloadsEl = document.getElementById('af-stat-downloads');
+            if (agentsEl) agentsEl.textContent = data.totalAgents?.toLocaleString() || '--';
+            if (creatorsEl) creatorsEl.textContent = data.totalCreators?.toLocaleString() || '--';
+            if (downloadsEl) downloadsEl.textContent = data.totalDownloads?.toLocaleString() || '--';
+          })
+          .catch(function() {});
       }
-      setTimeout(updateTrustBar, 1500);
+      setTimeout(updateTrustBar, 500);
 
       /* === Fix 6: Keyboard Shortcuts === */
       var kbdModalOpen = false;

@@ -1174,17 +1174,39 @@ export async function registerRoutes(
     res.json({ success: true });
   });
 
-  // ─── Stats ──────────────────────────────────────────────────
+  // ─── Stats (cached, refreshes every 5 minutes) ─────────────
+
+  let statsCache: { data: any; expiresAt: number } | null = null;
 
   app.get("/api/stats", async (_req, res) => {
-    const agents = await storage.getAgents();
-    const creators = await storage.getCreators();
-    res.json({
-      totalAgents: agents.length,
-      totalCreators: creators.length,
-      totalDownloads: agents.reduce((sum, a) => sum + a.downloads, 0),
-      totalSubscribers: creators.reduce((sum, c) => sum + c.subscribers, 0),
-    });
+    try {
+      const now = Date.now();
+      if (statsCache && now < statsCache.expiresAt) {
+        return res.json(statsCache.data);
+      }
+
+      const agents = await storage.getAgents();
+      const creators = await storage.getCreators();
+
+      const categories: Record<string, number> = {};
+      for (const a of agents) {
+        categories[a.category] = (categories[a.category] || 0) + 1;
+      }
+
+      const data = {
+        totalAgents: agents.length,
+        totalCreators: creators.length,
+        totalDownloads: agents.reduce((sum, a) => sum + a.downloads, 0),
+        totalSubscribers: creators.reduce((sum, c) => sum + c.subscribers, 0),
+        categories,
+      };
+
+      statsCache = { data, expiresAt: now + 5 * 60 * 1000 };
+      res.json(data);
+    } catch (error: any) {
+      console.error("Stats error:", error);
+      res.status(500).json({ message: "Failed to fetch stats" });
+    }
   });
 
   // ─── Stripe Connect: Creator Onboarding ─────────────────────
@@ -1531,6 +1553,113 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Billing fetch error:", error);
       res.json([]);
+    }
+  });
+
+  // ─── Agent Health Check ─────────────────────────────────────
+
+  // Bulk health check for all agents with apiEndpoint (called by cron)
+  app.post("/api/admin/health-check", async (_req, res) => {
+    try {
+      const agents = await storage.getAgents();
+      const withEndpoint = agents.filter(a => a.apiEndpoint);
+
+      const results: Array<{ id: string; name: string; endpoint: string; healthy: boolean; statusCode?: number; error?: string }> = [];
+
+      await Promise.all(withEndpoint.map(async (agent) => {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          const response = await fetch(agent.apiEndpoint!, {
+            method: "HEAD",
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          const healthy = response.status >= 200 && response.status < 300;
+          if (healthy) {
+            await storage.updateAgent(agent.id, { status: "active" });
+          }
+          results.push({ id: agent.id, name: agent.name, endpoint: agent.apiEndpoint!, healthy, statusCode: response.status });
+        } catch (err: any) {
+          // Try GET as fallback (some servers reject HEAD)
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000);
+            const response = await fetch(agent.apiEndpoint!, {
+              method: "GET",
+              signal: controller.signal,
+            });
+            clearTimeout(timeout);
+
+            const healthy = response.status >= 200 && response.status < 300;
+            if (healthy) {
+              await storage.updateAgent(agent.id, { status: "active" });
+            }
+            results.push({ id: agent.id, name: agent.name, endpoint: agent.apiEndpoint!, healthy, statusCode: response.status });
+          } catch (fallbackErr: any) {
+            results.push({ id: agent.id, name: agent.name, endpoint: agent.apiEndpoint!, healthy: false, error: fallbackErr.message || "Unreachable" });
+          }
+        }
+      }));
+
+      const healthy = results.filter(r => r.healthy).length;
+      res.json({
+        checked: results.length,
+        healthy,
+        unhealthy: results.length - healthy,
+        results,
+      });
+    } catch (error: any) {
+      console.error("Health check error:", error);
+      res.status(500).json({ message: "Health check failed" });
+    }
+  });
+
+  // Single agent health check
+  app.get("/api/agents/:id/health", async (req, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) return res.status(404).json({ message: "Agent not found" });
+      if (!agent.apiEndpoint) {
+        return res.json({ id: agent.id, name: agent.name, healthy: null, message: "No API endpoint configured" });
+      }
+
+      let healthy = false;
+      let statusCode: number | undefined;
+      let error: string | undefined;
+
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch(agent.apiEndpoint, {
+          method: "HEAD",
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        statusCode = response.status;
+        healthy = response.status >= 200 && response.status < 300;
+      } catch (err: any) {
+        // Fallback to GET
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          const response = await fetch(agent.apiEndpoint, {
+            method: "GET",
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          statusCode = response.status;
+          healthy = response.status >= 200 && response.status < 300;
+        } catch (fallbackErr: any) {
+          error = fallbackErr.message || "Unreachable";
+        }
+      }
+
+      res.json({ id: agent.id, name: agent.name, endpoint: agent.apiEndpoint, healthy, statusCode, error });
+    } catch (error: any) {
+      console.error("Agent health check error:", error);
+      res.status(500).json({ message: "Health check failed" });
     }
   });
 
