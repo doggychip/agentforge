@@ -1663,6 +1663,310 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Auto-Import: GitHub Trending ─────────────────────────────
+
+  async function importFromGitHub(): Promise<{ imported: number; skipped: number; errors: number; agents: string[] }> {
+    const queries = [
+      "topic:mcp-server stars:>50",
+      "topic:ai-agent stars:>100",
+      "topic:langchain stars:>200",
+      "topic:rag stars:>100",
+      "topic:ai-agent+topic:llm+stars:>100",
+    ];
+
+    const seenRepos = new Set<string>();
+    const allRepos: any[] = [];
+
+    for (const q of queries) {
+      try {
+        console.log(`[GitHub Import] Searching: ${q}`);
+        const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=30`;
+        const resp = await fetch(url, {
+          headers: { "User-Agent": "AgentForge/1.0", "Accept": "application/vnd.github.v3+json" },
+        });
+        if (!resp.ok) {
+          console.error(`[GitHub Import] Search failed for "${q}": ${resp.status} ${resp.statusText}`);
+          continue;
+        }
+        const data = await resp.json() as any;
+        for (const repo of (data.items || [])) {
+          if (!seenRepos.has(repo.full_name)) {
+            seenRepos.add(repo.full_name);
+            allRepos.push(repo);
+          }
+        }
+        // Rate limit: 1 second delay between GitHub API calls
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (err) {
+        console.error(`[GitHub Import] Error searching "${q}":`, err);
+      }
+    }
+
+    console.log(`[GitHub Import] Found ${allRepos.length} unique repos`);
+
+    const existingAgents = await storage.getAgents();
+    const existingNames = new Set(existingAgents.map(a => a.name.toLowerCase()));
+
+    let imported = 0;
+    let skipped = 0;
+    let errors = 0;
+    const importedNames: string[] = [];
+
+    for (const repo of allRepos) {
+      try {
+        const repoName: string = repo.name;
+        if (existingNames.has(repoName.toLowerCase())) {
+          skipped++;
+          continue;
+        }
+
+        // Create or find creator
+        const ownerLogin: string = repo.owner?.login || "unknown";
+        let creator = await storage.getCreatorByHandle(ownerLogin);
+        if (!creator) {
+          creator = await storage.createCreator({
+            name: ownerLogin,
+            handle: ownerLogin,
+            avatar: `https://github.com/${ownerLogin}.png`,
+            bio: "Open source developer on GitHub",
+            subscribers: 0,
+            agentCount: 0,
+            tags: ["github", "open-source"],
+            verified: false,
+          });
+          console.log(`[GitHub Import] Created creator: ${ownerLogin}`);
+        }
+
+        // Infer category from topics
+        const topics: string[] = repo.topics || [];
+        let category = "tool";
+        if (topics.some((t: string) => t === "tool" || t === "mcp" || t === "mcp-server")) {
+          category = "tool";
+        } else if (topics.some((t: string) => t === "agent" || t === "ai-agent")) {
+          category = "agent";
+        } else if (topics.some((t: string) => t === "api")) {
+          category = "api";
+        }
+
+        const description = repo.description
+          ? (repo.description as string).slice(0, 200)
+          : `${repoName} - open source project from GitHub`;
+
+        await storage.createAgent({
+          creatorId: creator.id,
+          name: repoName,
+          description,
+          longDescription: repo.description || description,
+          category,
+          pricing: "free",
+          price: null,
+          tags: topics.slice(0, 5),
+          stars: repo.stargazers_count || 0,
+          downloads: (repo.stargazers_count || 0) * 10,
+          apiEndpoint: repo.homepage || null,
+          hfSpaceUrl: null,
+          hfModelId: null,
+          backendType: "self-hosted",
+          status: "active",
+          featured: false,
+        });
+
+        existingNames.add(repoName.toLowerCase());
+        importedNames.push(repoName);
+        imported++;
+        console.log(`[GitHub Import] Imported: ${repoName} (${repo.stargazers_count} stars)`);
+      } catch (err) {
+        console.error(`[GitHub Import] Error importing repo ${repo?.name}:`, err);
+        errors++;
+      }
+    }
+
+    return { imported, skipped, errors, agents: importedNames };
+  }
+
+  app.post("/api/admin/import/github", async (_req: Request, res: Response) => {
+    try {
+      console.log("[GitHub Import] Starting import...");
+      const result = await importFromGitHub();
+      console.log(`[GitHub Import] Done: ${result.imported} imported, ${result.skipped} skipped, ${result.errors} errors`);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[GitHub Import] Fatal error:", error);
+      res.status(500).json({ message: "GitHub import failed", error: error.message });
+    }
+  });
+
+  // ─── Auto-Import: HuggingFace Trending ──────────────────────────
+
+  async function importFromHuggingFace(): Promise<{ imported: number; skipped: number; errors: number; agents: string[] }> {
+    const allItems: Array<{ type: "model" | "space"; data: any }> = [];
+
+    // Fetch trending models
+    try {
+      console.log("[HF Import] Fetching trending models...");
+      const modelsResp = await fetch("https://huggingface.co/api/models?sort=trending&direction=-1&limit=30&filter=text-generation", {
+        headers: { "User-Agent": "AgentForge/1.0" },
+      });
+      if (modelsResp.ok) {
+        const models = await modelsResp.json() as any[];
+        for (const m of models) {
+          allItems.push({ type: "model", data: m });
+        }
+        console.log(`[HF Import] Found ${models.length} trending models`);
+      } else {
+        console.error(`[HF Import] Models fetch failed: ${modelsResp.status}`);
+      }
+    } catch (err) {
+      console.error("[HF Import] Error fetching models:", err);
+    }
+
+    // Fetch trending spaces
+    try {
+      console.log("[HF Import] Fetching trending spaces...");
+      const spacesResp = await fetch("https://huggingface.co/api/spaces?sort=trending&direction=-1&limit=20", {
+        headers: { "User-Agent": "AgentForge/1.0" },
+      });
+      if (spacesResp.ok) {
+        const spaces = await spacesResp.json() as any[];
+        for (const s of spaces) {
+          allItems.push({ type: "space", data: s });
+        }
+        console.log(`[HF Import] Found ${spaces.length} trending spaces`);
+      } else {
+        console.error(`[HF Import] Spaces fetch failed: ${spacesResp.status}`);
+      }
+    } catch (err) {
+      console.error("[HF Import] Error fetching spaces:", err);
+    }
+
+    const existingAgents = await storage.getAgents();
+    const existingNames = new Set(existingAgents.map(a => a.name.toLowerCase()));
+
+    let imported = 0;
+    let skipped = 0;
+    let errors = 0;
+    const importedNames: string[] = [];
+
+    for (const item of allItems) {
+      try {
+        const fullId: string = item.data.id || item.data.modelId || "";
+        // Extract name without org prefix (e.g. "Llama-3" from "meta-llama/Llama-3")
+        const nameParts = fullId.split("/");
+        const shortName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : nameParts[0];
+        const authorId = nameParts.length > 1 ? nameParts[0] : (item.data.author || "unknown");
+
+        if (!shortName) {
+          skipped++;
+          continue;
+        }
+
+        if (existingNames.has(shortName.toLowerCase())) {
+          skipped++;
+          continue;
+        }
+
+        // Create or find creator from author
+        let creator = await storage.getCreatorByHandle(authorId);
+        if (!creator) {
+          creator = await storage.createCreator({
+            name: authorId,
+            handle: authorId,
+            avatar: `https://huggingface.co/avatars/${authorId}`,
+            bio: "Creator on Hugging Face",
+            subscribers: 0,
+            agentCount: 0,
+            tags: ["huggingface", "ai"],
+            verified: false,
+          });
+          console.log(`[HF Import] Created creator: ${authorId}`);
+        }
+
+        const isModel = item.type === "model";
+        const pipelineTag: string = item.data.pipeline_tag || "";
+        const description = item.data.description
+          ? (item.data.description as string).slice(0, 200)
+          : isModel
+            ? `${shortName} - ${pipelineTag || "text generation"} model on Hugging Face`
+            : `${shortName} - interactive space on Hugging Face`;
+
+        const tags: string[] = (item.data.tags || []).slice(0, 5);
+
+        await storage.createAgent({
+          creatorId: creator.id,
+          name: shortName,
+          description,
+          longDescription: item.data.description || description,
+          category: isModel ? "agent" : "tool",
+          pricing: "free",
+          price: null,
+          tags,
+          stars: item.data.likes || 0,
+          downloads: item.data.downloads || 0,
+          apiEndpoint: null,
+          hfSpaceUrl: isModel ? null : `https://huggingface.co/spaces/${fullId}`,
+          hfModelId: isModel ? fullId : null,
+          backendType: isModel ? "hf-inference" : "self-hosted",
+          status: "active",
+          featured: false,
+        });
+
+        existingNames.add(shortName.toLowerCase());
+        importedNames.push(shortName);
+        imported++;
+        console.log(`[HF Import] Imported ${item.type}: ${shortName} (${item.data.likes || 0} likes)`);
+      } catch (err) {
+        console.error(`[HF Import] Error importing ${item.data?.id}:`, err);
+        errors++;
+      }
+    }
+
+    return { imported, skipped, errors, agents: importedNames };
+  }
+
+  app.post("/api/admin/import/huggingface", async (_req: Request, res: Response) => {
+    try {
+      console.log("[HF Import] Starting import...");
+      const result = await importFromHuggingFace();
+      console.log(`[HF Import] Done: ${result.imported} imported, ${result.skipped} skipped, ${result.errors} errors`);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[HF Import] Fatal error:", error);
+      res.status(500).json({ message: "HuggingFace import failed", error: error.message });
+    }
+  });
+
+  // ─── Auto-Import: Combined ──────────────────────────────────────
+
+  app.post("/api/admin/import/all", async (_req: Request, res: Response) => {
+    try {
+      console.log("[Import All] Starting combined import...");
+      const [github, huggingface] = await Promise.all([
+        importFromGitHub().catch(err => {
+          console.error("[Import All] GitHub import failed:", err);
+          return { imported: 0, skipped: 0, errors: 1, agents: [] as string[] };
+        }),
+        importFromHuggingFace().catch(err => {
+          console.error("[Import All] HuggingFace import failed:", err);
+          return { imported: 0, skipped: 0, errors: 1, agents: [] as string[] };
+        }),
+      ]);
+
+      const combined = {
+        imported: github.imported + huggingface.imported,
+        skipped: github.skipped + huggingface.skipped,
+        errors: github.errors + huggingface.errors,
+        agents: [...github.agents, ...huggingface.agents],
+        details: { github, huggingface },
+      };
+
+      console.log(`[Import All] Done: ${combined.imported} imported, ${combined.skipped} skipped, ${combined.errors} errors`);
+      res.json(combined);
+    } catch (error: any) {
+      console.error("[Import All] Fatal error:", error);
+      res.status(500).json({ message: "Combined import failed", error: error.message });
+    }
+  });
+
   // ─── HF Inference Proxy ──────────────────────────────────────
 
   app.post("/api/agents/:id/invoke", requireApiKeyOrSession, async (req, res) => {
