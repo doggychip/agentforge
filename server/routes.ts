@@ -5,6 +5,7 @@ import connectPgSimple from "connect-pg-simple";
 import pg from "pg";
 import crypto from "crypto";
 import Stripe from "stripe";
+import nodemailer from "nodemailer";
 import { storage } from "./storage";
 import { CONTENT_SOURCES } from "./content-sources";
 import { registerSchema, loginSchema, insertAgentSchema, type SafeUser } from "@shared/schema";
@@ -256,6 +257,99 @@ export async function registerRoutes(
         return res.status(400).json({ message: error.errors[0]?.message || "Invalid input" });
       }
       console.error("Login error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ─── Forgot Username ──────────────────────────────────────
+  app.post("/api/auth/forgot-username", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ message: "Email is required" });
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        // Don't reveal whether email exists
+        return res.json({ message: "If an account with that email exists, the username has been sent." });
+      }
+      res.json({ message: "If an account with that email exists, the username has been sent.", username: user.username });
+    } catch (error: any) {
+      console.error("Forgot username error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ─── Forgot Password ──────────────────────────────────────
+  const passwordResetTokens = new Map<string, { userId: string; expiresAt: number }>();
+
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ message: "Email is required" });
+
+      const user = await storage.getUserByEmail(email);
+      // Always return success to avoid leaking whether email exists
+      const successMsg = "If an account with that email exists, a password reset link has been sent.";
+
+      if (!user) return res.json({ message: successMsg });
+
+      // Generate token
+      const token = crypto.randomBytes(32).toString("hex");
+      passwordResetTokens.set(token, { userId: user.id, expiresAt: Date.now() + 3600_000 }); // 1 hour
+
+      // Build reset URL
+      const origin = `${req.protocol}://${req.get("host")}`;
+      const resetUrl = `${origin}/#/reset-password?token=${token}`;
+
+      // Try to send email if SMTP is configured
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+
+      if (smtpHost && smtpUser && smtpPass) {
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: parseInt(process.env.SMTP_PORT || "587"),
+          secure: process.env.SMTP_PORT === "465",
+          auth: { user: smtpUser, pass: smtpPass },
+        });
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || smtpUser,
+          to: email,
+          subject: "AgentForge — Reset Your Password",
+          html: `<p>Hi ${user.displayName},</p><p>Click the link below to reset your password (expires in 1 hour):</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>If you didn't request this, you can ignore this email.</p>`,
+        });
+        console.log(`[auth] Password reset email sent to ${email}`);
+      } else {
+        // No email configured — log link for admin use
+        console.log(`[auth] Password reset link for ${email}: ${resetUrl}`);
+      }
+
+      res.json({ message: successMsg });
+    } catch (error: any) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, password } = req.body;
+      if (!token || !password) return res.status(400).json({ message: "Token and password are required" });
+      if (password.length < 8) return res.status(400).json({ message: "Password must be at least 8 characters" });
+
+      const entry = passwordResetTokens.get(token);
+      if (!entry || Date.now() > entry.expiresAt) {
+        passwordResetTokens.delete(token);
+        return res.status(400).json({ message: "Invalid or expired reset token" });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+      await storage.updateUser(entry.userId, { password: hashedPassword });
+      passwordResetTokens.delete(token);
+
+      res.json({ message: "Password has been reset. You can now log in." });
+    } catch (error: any) {
+      console.error("Reset password error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
