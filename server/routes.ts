@@ -1804,7 +1804,7 @@ export async function registerRoutes(
     // Fetch trending models
     try {
       console.log("[HF Import] Fetching trending models...");
-      const modelsResp = await fetch("https://huggingface.co/api/models?sort=trending&direction=-1&limit=30&filter=text-generation", {
+      const modelsResp = await fetch("https://huggingface.co/api/models?sort=downloads&direction=-1&limit=30&pipeline_tag=text-generation", {
         headers: { "User-Agent": "AgentForge/1.0" },
       });
       if (modelsResp.ok) {
@@ -1823,7 +1823,7 @@ export async function registerRoutes(
     // Fetch trending spaces
     try {
       console.log("[HF Import] Fetching trending spaces...");
-      const spacesResp = await fetch("https://huggingface.co/api/spaces?sort=trending&direction=-1&limit=20", {
+      const spacesResp = await fetch("https://huggingface.co/api/spaces?sort=likes&direction=-1&limit=20", {
         headers: { "User-Agent": "AgentForge/1.0" },
       });
       if (spacesResp.ok) {
