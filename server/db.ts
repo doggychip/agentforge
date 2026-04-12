@@ -10,9 +10,11 @@ const { Pool } = pg;
 let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 let pool: InstanceType<typeof Pool> | null = null;
 
-if (process.env.DATABASE_URL) {
+const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URI || process.env.POSTGRES_CONNECTION_STRING;
+
+if (databaseUrl) {
   pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: databaseUrl,
     max: 10,
   });
   db = drizzle(pool, { schema });

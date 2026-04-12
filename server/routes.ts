@@ -108,10 +108,12 @@ export async function registerRoutes(
     },
   };
 
-  if (process.env.DATABASE_URL) {
+  const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URI || process.env.POSTGRES_CONNECTION_STRING;
+
+  if (dbUrl) {
     try {
       const PgSession = connectPgSimple(session);
-      const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+      const pool = new pg.Pool({ connectionString: dbUrl });
       // Test the connection immediately
       await pool.query('SELECT 1');
       sessionConfig.store = new PgSession({
@@ -120,13 +122,13 @@ export async function registerRoutes(
         createTableIfMissing: true,
       });
       console.log("[session] Using Postgres-backed session store");
-      console.log("[session] DATABASE_URL is set and connected successfully");
+      console.log("[session] Connected to database successfully");
     } catch (err: any) {
       console.error("[session] Failed to connect to Postgres for sessions:", err.message);
-      console.error("[session] Falling back to MemoryStore. Check DATABASE_URL.");
+      console.error("[session] Falling back to MemoryStore. Check database URL env vars.");
     }
   } else {
-    console.warn("[session] DATABASE_URL not set — using MemoryStore (sessions will not persist)");
+    console.warn("[session] No database URL set — using MemoryStore (sessions will not persist)");
   }
 
   app.use(session(sessionConfig));
@@ -176,7 +178,7 @@ export async function registerRoutes(
   app.get("/api/health", (_req, res) => {
     res.json({
       status: "ok",
-      database: process.env.DATABASE_URL ? "connected" : "in-memory",
+      database: dbUrl ? "connected" : "in-memory",
       stripe: STRIPE_KEY ? "configured" : "not configured",
       sessionStore: sessionConfig.store ? "postgres" : "memory",
     });
@@ -1101,8 +1103,49 @@ export async function registerRoutes(
         }
       }
 
+      // ── Self-hosted agent: proxy to its apiEndpoint ──
+      if (agent.backendType === "self-hosted") {
+        if (!agent.apiEndpoint) {
+          return res.status(400).json({ message: "No API endpoint configured for this agent" });
+        }
+
+        // Validate endpoint URL to prevent SSRF against internal services
+        const targetUrl = new URL(agent.apiEndpoint);
+        if (targetUrl.hostname === "localhost" || targetUrl.hostname === "127.0.0.1" || targetUrl.hostname === "0.0.0.0") {
+          return res.status(400).json({ message: "Invalid agent endpoint" });
+        }
+
+        const proxyRes = await fetch(agent.apiEndpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(req.headers["authorization"] ? {} : {}),
+          },
+          body: JSON.stringify(req.body),
+        });
+
+        const contentType = proxyRes.headers.get("content-type") || "application/json";
+        res.status(proxyRes.status).set("Content-Type", contentType);
+
+        if (!proxyRes.ok) {
+          const errBody = await proxyRes.text();
+          return res.send(errBody);
+        }
+
+        if (req.body.stream && proxyRes.body) {
+          const { Readable } = await import("stream");
+          const nodeStream = Readable.fromWeb(proxyRes.body as any);
+          nodeStream.pipe(res);
+        } else {
+          const data = await proxyRes.json();
+          res.json(data);
+        }
+        return;
+      }
+
+      // ── HF Inference agent ──
       if (agent.backendType !== "hf-inference") {
-        return res.status(400).json({ message: "This agent does not use HF Inference. Use the agent's own API endpoint." });
+        return res.status(400).json({ message: `Unsupported backend type: ${agent.backendType}` });
       }
 
       if (!agent.hfModelId) {
@@ -1152,8 +1195,8 @@ export async function registerRoutes(
         res.json(data);
       }
     } catch (error: any) {
-      console.error("HF Inference proxy error:", error);
-      res.status(502).json({ message: "Failed to proxy to HF Inference", error: error.message });
+      console.error("Agent invoke proxy error:", error);
+      res.status(502).json({ message: "Failed to invoke agent", error: error.message });
     }
   });
 
