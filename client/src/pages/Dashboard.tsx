@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -239,6 +239,31 @@ export default function Dashboard() {
   const [deleteAgent, setDeleteAgent] = useState<Agent | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("downloads");
   const [sortAsc, setSortAsc] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+
+  // Dismiss detail panel on scroll
+  useEffect(() => {
+    if (!selectedCard) return;
+
+    const handleScroll = () => setSelectedCard(null);
+
+    document.addEventListener('wheel', handleScroll, { capture: true, passive: true });
+    document.addEventListener('touchmove', handleScroll, { capture: true, passive: true });
+
+    const tableWrap = tableWrapRef.current;
+    if (tableWrap) {
+      tableWrap.addEventListener('scroll', handleScroll, { passive: true });
+    }
+
+    return () => {
+      document.removeEventListener('wheel', handleScroll, { capture: true });
+      document.removeEventListener('touchmove', handleScroll, { capture: true });
+      if (tableWrap) {
+        tableWrap.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [selectedCard]);
 
   // ─── Queries ─────────────────────────────────────────────
 
@@ -764,7 +789,7 @@ export default function Dashboard() {
             </Button>
           </div>
         ) : (
-          <div className="rounded-lg border border-border bg-card overflow-hidden" data-testid="table-agents">
+          <div ref={tableWrapRef} className="rounded-lg border border-border bg-card overflow-hidden" data-testid="table-agents">
             {/* Table Header */}
             <div className="grid grid-cols-[1fr_70px_90px_80px_70px_80px_60px] gap-2 px-3 py-2 border-b border-border bg-muted/50 text-[10px] text-muted-foreground uppercase tracking-wider">
               <SortHeader label="Name" sortKey="name" current={sortKey} asc={sortAsc} onSort={toggleSort} />
@@ -782,7 +807,8 @@ export default function Dashboard() {
               return (
                 <div
                   key={ab.id}
-                  className="grid grid-cols-[1fr_70px_90px_80px_70px_80px_60px] gap-2 px-3 py-2.5 border-b border-border last:border-b-0 items-center text-xs hover:bg-muted/30 transition-colors"
+                  className={`grid grid-cols-[1fr_70px_90px_80px_70px_80px_60px] gap-2 px-3 py-2.5 border-b border-border last:border-b-0 items-center text-xs cursor-pointer transition-colors ${selectedCard === ab.id ? "bg-primary/5 ring-1 ring-primary/20" : "hover:bg-muted/30"}`}
+                  onClick={() => setSelectedCard(selectedCard === ab.id ? null : ab.id)}
                   data-testid={`agent-row-${ab.id}`}
                 >
                   {/* Name + pricing badge */}
