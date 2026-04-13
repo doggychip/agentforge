@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Shield, Bot, Users, Search, ArrowUpDown, X as XIcon } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 
 function formatNumber(n: number) {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
@@ -30,6 +30,8 @@ export default function Creators() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("popular");
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [tagsExpanded, setTagsExpanded] = useState(false);
+  const tagsRef = useRef<HTMLDivElement>(null);
 
   const { data: creators, isLoading } = useQuery<Creator[]>({
     queryKey: ["/api/creators"],
@@ -118,7 +120,12 @@ export default function Creators() {
       </div>
 
       {/* Tag filters */}
-      <div className="flex items-center gap-2 flex-wrap mb-6" data-testid="filter-tags-creators">
+      <div
+        ref={tagsRef}
+        className="flex items-center gap-2 flex-wrap mb-2 overflow-hidden transition-all duration-300"
+        style={{ maxHeight: tagsExpanded ? tagsRef.current?.scrollHeight : 42 }}
+        data-testid="filter-tags-creators"
+      >
         <Button
           variant={activeTag === null ? "default" : "outline"}
           size="sm"
@@ -153,6 +160,15 @@ export default function Creators() {
           </Button>
         )}
       </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 text-xs text-muted-foreground hover:text-foreground mb-4"
+        onClick={() => setTagsExpanded(!tagsExpanded)}
+        data-testid="button-toggle-tags"
+      >
+        {tagsExpanded ? "Show fewer tags \u25B4" : "Show all tags \u25BE"}
+      </Button>
 
       {/* Results count */}
       <p className="text-xs text-muted-foreground mb-4">
