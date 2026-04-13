@@ -98,6 +98,7 @@ export interface IStorage {
 
   // Usage logging
   logApiUsage(log: InsertApiUsageLog): Promise<void>;
+  getApiUsageLogs(userId: string): Promise<ApiUsageLog[]>;
   getUsageByKey(apiKeyId: string, since: Date): Promise<ApiUsageLog[]>;
   getUsageCountByKey(apiKeyId: string, since: Date): Promise<number>;
   getUsageStatsByUser(userId: string): Promise<{
@@ -390,6 +391,11 @@ class PgStorage implements IStorage {
   async logApiUsage(log: InsertApiUsageLog) {
     await db!.insert(apiUsageLogs).values(log);
   }
+  async getApiUsageLogs(userId: string) {
+    return db!.select().from(apiUsageLogs)
+      .where(eq(apiUsageLogs.userId, userId))
+      .orderBy(desc(apiUsageLogs.createdAt));
+  }
   async getUsageByKey(apiKeyId: string, since: Date) {
     return db!.select().from(apiUsageLogs)
       .where(and(eq(apiUsageLogs.apiKeyId, apiKeyId), sql`${apiUsageLogs.createdAt} >= ${since}`))
@@ -542,7 +548,7 @@ class MemStorage implements IStorage {
 
   async seed() {
     SEED_CREATORS.forEach((c) => this.creatorsMap.set(c.id!, c as Creator));
-    SEED_AGENTS.forEach((a) => this.agentsMap.set(a.id!, a as Agent));
+    SEED_AGENTS.forEach((a) => this.agentsMap.set(a.id!, { ...a, dockerImage: null } as Agent));
     SEED_POSTS.forEach((p) => this.postsMap.set(p.id!, { ...p, createdAt: new Date(p.createdAt), featured: p.featured ?? false, commentCount: p.commentCount ?? 0 } as Post));
   }
 
@@ -609,7 +615,7 @@ class MemStorage implements IStorage {
   }
   async createAgent(insertAgent: InsertAgent) {
     const id = randomUUID();
-    const agent: Agent = { ...insertAgent, id, stars: 0, downloads: 0, status: "active", featured: false, longDescription: insertAgent.longDescription ?? null, price: insertAgent.price ?? null, currency: insertAgent.currency ?? "USD", apiEndpoint: insertAgent.apiEndpoint ?? null, hfSpaceUrl: insertAgent.hfSpaceUrl ?? null, hfModelId: insertAgent.hfModelId ?? null, backendType: insertAgent.backendType ?? "self-hosted" };
+    const agent: Agent = { ...insertAgent, id, stars: 0, downloads: 0, status: "active", featured: false, longDescription: insertAgent.longDescription ?? null, price: insertAgent.price ?? null, currency: insertAgent.currency ?? "USD", apiEndpoint: insertAgent.apiEndpoint ?? null, hfSpaceUrl: insertAgent.hfSpaceUrl ?? null, hfModelId: insertAgent.hfModelId ?? null, backendType: insertAgent.backendType ?? "self-hosted", dockerImage: (insertAgent as any).dockerImage ?? null };
     this.agentsMap.set(id, agent);
     return agent;
   }
@@ -815,6 +821,7 @@ class MemStorage implements IStorage {
     const apiKey: ApiKey = {
       ...key,
       id,
+      agentId: key.agentId ?? null,
       lastUsedAt: null,
       createdAt: new Date(),
       revoked: false,
@@ -846,8 +853,11 @@ class MemStorage implements IStorage {
 
   // Usage logging (Mem)
   async logApiUsage(log: InsertApiUsageLog) {
-    const entry: ApiUsageLog = { ...log, id: randomUUID(), createdAt: new Date(), responseTimeMs: log.responseTimeMs ?? null };
+    const entry: ApiUsageLog = { ...log, id: randomUUID(), createdAt: new Date(), responseTimeMs: log.responseTimeMs ?? null, agentId: log.agentId ?? null };
     this.apiUsageLogsArr.push(entry);
+  }
+  async getApiUsageLogs(userId: string) {
+    return this.apiUsageLogsArr.filter(l => l.userId === userId);
   }
   async getUsageByKey(apiKeyId: string, since: Date) {
     return this.apiUsageLogsArr
