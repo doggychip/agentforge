@@ -157,8 +157,9 @@ export async function registerRoutes(
   process.env.CLERK_PUBLISHABLE_KEY = process.env.CLERK_PUBLISHABLE_KEY || "pk_test_Zmx5aW5nLXNsb3RoLTMuY2xlcmsuYWNjb3VudHMuZGV2JA";
   if (clerkMiddleware) {
     try {
-      app.use(clerkMiddleware());
-      console.log("[clerk] Middleware initialized");
+      // Only apply Clerk to API routes — static files don't need auth
+      app.use("/api", clerkMiddleware());
+      console.log("[clerk] Middleware initialized (API routes only)");
     } catch (err: any) {
       console.error("[clerk] Failed to initialize:", err.message);
     }
@@ -271,6 +272,22 @@ export async function registerRoutes(
     }
     const agents = await storage.getAgents();
     res.json(agents);
+  });
+
+  app.get("/api/agents/new-arrivals", async (_req, res) => {
+    try {
+      const allAgents = await storage.getAgents();
+      // Sort by ID descending — UUID-style IDs are newer than short IDs like "a1"
+      const sorted = [...allAgents].sort((a, b) => {
+        // UUIDs (longer IDs) are newer than short IDs
+        if (a.id.length !== b.id.length) return b.id.length - a.id.length;
+        return b.id.localeCompare(a.id);
+      });
+      const limit = parseInt(asSingleParam(_req.query.limit as string) || "20", 10);
+      res.json(sorted.slice(0, limit));
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get new arrivals" });
+    }
   });
 
   app.get("/api/agents/trending", async (_req, res) => {
@@ -1628,6 +1645,36 @@ export async function registerRoutes(
       res.status(500).json({ message: "Combined import failed", error: error.message });
     }
   });
+
+  // ─── Daily Auto-Import Scheduler ─────────────────────────────
+  // Runs every 24 hours to pull latest agents from GitHub Trending & HuggingFace
+  const IMPORT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  async function runDailyImport() {
+    console.log("[Scheduler] Starting daily auto-import...");
+    try {
+      const [github, huggingface] = await Promise.all([
+        importFromGitHub().catch(err => {
+          console.error("[Scheduler] GitHub import failed:", err.message);
+          return { imported: 0, skipped: 0, errors: 1, agents: [] as string[] };
+        }),
+        importFromHuggingFace().catch(err => {
+          console.error("[Scheduler] HuggingFace import failed:", err.message);
+          return { imported: 0, skipped: 0, errors: 1, agents: [] as string[] };
+        }),
+      ]);
+      console.log(`[Scheduler] Daily import done: GitHub(${github.imported} new, ${github.skipped} skipped), HF(${huggingface.imported} new, ${huggingface.skipped} skipped)`);
+    } catch (err: any) {
+      console.error("[Scheduler] Daily import failed:", err.message);
+    }
+  }
+
+  // Run first import 30 seconds after startup, then every 24 hours
+  setTimeout(() => {
+    runDailyImport();
+    setInterval(runDailyImport, IMPORT_INTERVAL_MS);
+  }, 30 * 1000);
+  console.log("[Scheduler] Daily auto-import scheduled (every 24h, first run in 30s)");
 
   // ─── HF Inference Proxy ──────────────────────────────────────
 
