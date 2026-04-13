@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import type { Agent, Creator, Review } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Star, Download, Bot, Wrench, FileText, Globe, ArrowLeft, Share2, X as XIcon,
   Shield, Copy, Code, Cpu, MessageSquare, CheckCircle, Terminal, Play, Box,
-  Loader2, Settings,
+  Loader2, Settings, Send, MessageCircle,
 } from "lucide-react";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { InstallModal } from "@/components/InstallModal";
@@ -156,6 +156,10 @@ export default function AgentDetail() {
   const [reviewBody, setReviewBody] = useState("");
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ role: string; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatConvId, setChatConvId] = useState<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Parse checkout status from hash URL: /#/agents/a1?checkout=success
   const checkoutStatus = useMemo(() => {
@@ -251,6 +255,41 @@ export default function AgentDetail() {
       toast({ title: "Error", description: "Sign in to leave a review", variant: "destructive" });
     },
   });
+
+  const chatMutation = useMutation({
+    mutationFn: async (content: string) => {
+      let convId = chatConvId;
+      if (!convId) {
+        const convRes = await apiRequest("POST", "/api/conversations", {
+          agentId: id,
+          userId: user?.id || null,
+        });
+        const conv = await convRes.json();
+        convId = conv.id;
+        setChatConvId(convId);
+      }
+      const res = await apiRequest("POST", `/api/conversations/${convId}/messages`, { content });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setChatMessages((prev) => [...prev, { role: "assistant", content: data.assistantMessage.content }]);
+    },
+    onError: () => {
+      setChatMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I couldn't process that. Try again." }]);
+    },
+  });
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  function sendChat() {
+    const msg = chatInput.trim();
+    if (!msg || chatMutation.isPending) return;
+    setChatMessages((prev) => [...prev, { role: "user", content: msg }]);
+    setChatInput("");
+    chatMutation.mutate(msg);
+  }
 
   if (isLoading) {
     return (
@@ -451,6 +490,9 @@ export default function AgentDetail() {
           <TabsTrigger value="reviews" className="text-xs">
             Reviews {reviewCount > 0 && `(${reviewCount})`}
           </TabsTrigger>
+          <TabsTrigger value="ask" className="text-xs gap-1">
+            <MessageCircle size={11} /> Ask AI
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -627,6 +669,87 @@ curl -X POST ${agent.apiEndpoint || `https://api.agentforge.dev/v1/agents/${agen
               <p className="text-sm text-muted-foreground">No reviews yet. Be the first to review.</p>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="ask" className="space-y-4">
+          <div className="rounded-lg border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-1.5">
+              <MessageCircle size={14} />
+              Ask about {agent.name}
+            </h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Chat with AI to learn what this agent does, how to set it up, and more.
+            </p>
+
+            {/* Chat Messages */}
+            <div className="min-h-[200px] max-h-[400px] overflow-y-auto space-y-3 mb-4">
+              {chatMessages.length === 0 && (
+                <div className="text-center py-8">
+                  <Bot size={28} className="mx-auto mb-3 text-muted-foreground opacity-40" />
+                  <p className="text-xs text-muted-foreground mb-3">Ask anything about this agent</p>
+                  <div className="flex flex-wrap justify-center gap-1.5">
+                    {[
+                      "What does this agent do?",
+                      "How do I set it up?",
+                      "What are the requirements?",
+                      "Show me an example",
+                    ].map((q) => (
+                      <button
+                        key={q}
+                        className="text-[11px] px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-all"
+                        onClick={() => {
+                          setChatMessages([{ role: "user", content: q }]);
+                          chatMutation.mutate(q);
+                        }}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                    msg.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-foreground"
+                  }`}>
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                </div>
+              ))}
+              {chatMutation.isPending && (
+                <div className="flex justify-start">
+                  <div className="bg-muted rounded-lg px-3 py-2">
+                    <Loader2 size={14} className="animate-spin text-muted-foreground" />
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder={`Ask about ${agent.name}...`}
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendChat()}
+                className="flex-1 h-9 px-3 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                disabled={chatMutation.isPending}
+              />
+              <Button
+                size="sm"
+                className="h-9 px-3"
+                onClick={sendChat}
+                disabled={!chatInput.trim() || chatMutation.isPending}
+              >
+                <Send size={14} />
+              </Button>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
 
