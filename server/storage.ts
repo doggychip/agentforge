@@ -573,7 +573,16 @@ class MemStorage implements IStorage {
   }
   async createCreator(insertCreator: InsertCreator) {
     const id = randomUUID();
-    const creator: Creator = { ...insertCreator, id, subscribers: insertCreator.subscribers ?? 0, agentCount: insertCreator.agentCount ?? 0, verified: insertCreator.verified ?? false, stripeAccountId: insertCreator.stripeAccountId ?? null, stripeOnboarded: insertCreator.stripeOnboarded ?? false };
+    const creator: Creator = {
+      ...insertCreator,
+      id,
+      userId: insertCreator.userId ?? null,
+      subscribers: insertCreator.subscribers ?? 0,
+      agentCount: insertCreator.agentCount ?? 0,
+      verified: insertCreator.verified ?? false,
+      stripeAccountId: insertCreator.stripeAccountId ?? null,
+      stripeOnboarded: insertCreator.stripeOnboarded ?? false,
+    };
     this.creatorsMap.set(id, creator);
     return creator;
   }
@@ -623,7 +632,16 @@ class MemStorage implements IStorage {
   }
   async createPost(insertPost: InsertPost) {
     const id = randomUUID();
-    const post: Post = { ...insertPost, id, likes: 0, commentCount: 0, createdAt: new Date(), featured: false };
+    const post: Post = {
+      ...insertPost,
+      id,
+      excerpt: insertPost.excerpt ?? null,
+      visibility: insertPost.visibility ?? "public",
+      likes: 0,
+      commentCount: 0,
+      createdAt: new Date(),
+      featured: false,
+    };
     this.postsMap.set(id, post);
     return post;
   }
@@ -660,7 +678,14 @@ class MemStorage implements IStorage {
   }
   async createSubscription(sub: InsertSubscription) {
     const id = randomUUID();
-    const subscription: Subscription = { ...sub, id, stripeSubscriptionId: sub.stripeSubscriptionId ?? null, stripeCheckoutSessionId: sub.stripeCheckoutSessionId ?? null, currentPeriodEnd: sub.currentPeriodEnd ?? null };
+    const subscription: Subscription = {
+      ...sub,
+      id,
+      status: sub.status ?? "active",
+      stripeSubscriptionId: sub.stripeSubscriptionId ?? null,
+      stripeCheckoutSessionId: sub.stripeCheckoutSessionId ?? null,
+      currentPeriodEnd: sub.currentPeriodEnd ?? null,
+    };
     this.subscriptionsMap.set(id, subscription);
     return subscription;
   }
@@ -787,7 +812,15 @@ class MemStorage implements IStorage {
   }
   async createApiKey(key: InsertApiKey) {
     const id = randomUUID();
-    const apiKey: ApiKey = { ...key, id, lastUsedAt: null, createdAt: new Date(), revoked: false, rateLimit: key.rateLimit ?? 1000, rateLimitDay: key.rateLimitDay ?? 10000 };
+    const apiKey: ApiKey = {
+      ...key,
+      id,
+      lastUsedAt: null,
+      createdAt: new Date(),
+      revoked: false,
+      rateLimit: 1000,
+      rateLimitDay: 10000,
+    };
     this.apiKeysMap.set(id, apiKey);
     return apiKey;
   }
