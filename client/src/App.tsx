@@ -25,6 +25,8 @@ import ForCreators from "@/pages/ForCreators";
 import ResetPassword from "@/pages/ResetPassword";
 import Pricing from "@/pages/Pricing";
 import Playground from "@/pages/Playground";
+import CreatorDashboard from "@/pages/CreatorDashboard";
+import PublishAgent from "@/pages/PublishAgent";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -49,6 +51,8 @@ function AppRouter() {
         <Route path="/for-creators" component={ForCreators} />
         <Route path="/auth" component={Auth} />
         <Route path="/pricing" component={Pricing} />
+        <Route path="/creator-dashboard" component={CreatorDashboard} />
+        <Route path="/publish" component={PublishAgent} />
         <Route path="/reset-password" component={ResetPassword} />
         <Route component={NotFound} />
       </Switch>
