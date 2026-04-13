@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search, Star, Download, ArrowRight, Bot, Wrench, FileText, Globe,
-  Shield, Code, Database, Cpu, Terminal, Zap, ChevronRight, Heart, MessageCircle, Clock
+  Shield, Code, Database, Cpu, Terminal, Zap, ChevronRight, Heart, MessageCircle, Clock,
+  TrendingUp, Sparkles
 } from "lucide-react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { apiRequest } from "@/lib/queryClient";
@@ -160,6 +161,22 @@ export default function Home() {
 
   const { data: allAgents, isLoading: loadingAll } = useQuery<Agent[]>({
     queryKey: ["/api/agents"],
+  });
+
+  const { data: trendingAgents, isLoading: loadingTrending } = useQuery<Agent[]>({
+    queryKey: ["/api/agents/trending"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/agents/trending?limit=8");
+      return res.json();
+    },
+  });
+
+  const { data: recommendedAgents } = useQuery<Agent[]>({
+    queryKey: ["/api/agents/recommended"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/agents/recommended?limit=6");
+      return res.json();
+    },
   });
 
   const { data: creators, isLoading: loadingCreators } = useQuery<Creator[]>({
@@ -461,6 +478,54 @@ export default function Home() {
               </div>
             )}
           </section>
+
+          {/* Trending Agents */}
+          <section className="mb-10" data-testid="section-trending">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                <TrendingUp size={14} className="text-orange-500" />
+                Trending
+              </h2>
+              <Link href="/agents" className="flex items-center gap-1 text-xs text-primary font-medium no-underline hover:underline">
+                View all <ChevronRight size={12} />
+              </Link>
+            </div>
+            {loadingTrending ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} className="h-48 rounded-lg" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {trendingAgents?.slice(0, 8).map((agent, idx) => (
+                  <div key={agent.id} className="relative">
+                    <span className="absolute -top-1.5 -left-1.5 z-10 w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center shadow-sm">
+                      {idx + 1}
+                    </span>
+                    <AgentCard agent={agent} creator={creatorsMap.get(agent.creatorId)} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Recommended */}
+          {recommendedAgents && recommendedAgents.length > 0 && (
+            <section className="mb-10" data-testid="section-recommended">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-purple-500" />
+                  Recommended for you
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {recommendedAgents.map((agent) => (
+                  <AgentCard key={agent.id} agent={agent} creator={creatorsMap.get(agent.creatorId)} />
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Two-Column: All Agents + Creators Sidebar */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

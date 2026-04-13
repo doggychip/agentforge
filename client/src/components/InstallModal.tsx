@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { Agent } from "@shared/schema";
 import {
@@ -16,12 +16,13 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import {
   Copy, CheckCircle, Terminal, Box, Globe, Settings, Download, Key,
-  Wifi, WifiOff, Loader2, Server, Bot, Zap,
+  Wifi, WifiOff, Loader2, Server, Bot, Zap, MessageCircle, Send,
 } from "lucide-react";
 
 function CodeBlock({ code, label }: { code: string; label?: string }) {
@@ -88,7 +89,7 @@ function getInstallCommands(agent: Agent): { npm?: string; pip?: string; docker?
   return cmds;
 }
 
-type InstallTab = "setup" | "mcp" | "api" | "connect" | "deploy" | "a2a";
+type InstallTab = "setup" | "mcp" | "api" | "connect" | "deploy" | "a2a" | "ask";
 
 export function InstallModal({
   agent,
@@ -104,6 +105,10 @@ export function InstallModal({
   const [activeTab, setActiveTab] = useState<InstallTab>("setup");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [deployFormat, setDeployFormat] = useState("docker-compose");
+  const [chatMessages, setChatMessages] = useState<{ role: string; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatConvId, setChatConvId] = useState<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const mcpConfig = getMcpConfig(agent);
   const installCmds = getInstallCommands(agent);
@@ -144,6 +149,48 @@ export function InstallModal({
     enabled: activeTab === "deploy" && !!user,
   });
 
+  // AI Chat
+  const chatMutation = useMutation({
+    mutationFn: async (content: string) => {
+      let convId = chatConvId;
+      if (!convId) {
+        const convRes = await apiRequest("POST", "/api/conversations", {
+          agentId: agent.id,
+          userId: user?.id || null,
+        });
+        const conv = await convRes.json();
+        convId = conv.id;
+        setChatConvId(convId);
+      }
+      const res = await apiRequest("POST", `/api/conversations/${convId}/messages`, { content });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: data.assistantMessage.content },
+      ]);
+    },
+    onError: () => {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Sorry, I couldn't process that. Try again." },
+      ]);
+    },
+  });
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  function sendChat() {
+    const msg = chatInput.trim();
+    if (!msg || chatMutation.isPending) return;
+    setChatMessages((prev) => [...prev, { role: "user", content: msg }]);
+    setChatInput("");
+    chatMutation.mutate(msg);
+  }
+
   const tabs: { id: InstallTab; label: string; icon: React.ReactNode }[] = [
     { id: "setup", label: "Setup", icon: <Download size={13} /> },
     ...(hasMcp ? [{ id: "mcp" as const, label: "MCP", icon: <Settings size={13} /> }] : []),
@@ -151,6 +198,7 @@ export function InstallModal({
     ...(hasApi ? [{ id: "connect" as const, label: "Connect", icon: <Wifi size={13} /> }] : []),
     { id: "deploy", label: "Deploy", icon: <Server size={13} /> },
     { id: "a2a", label: "A2A", icon: <Bot size={13} /> },
+    { id: "ask", label: "Ask AI", icon: <MessageCircle size={13} /> },
   ];
 
   return (
@@ -440,6 +488,82 @@ curl -X POST "${agent.apiEndpoint || `https://api.agentforge.dev/v1/agents/${age
                 to distinguish them from user keys (<code className="bg-muted px-1 rounded font-mono">af_k_</code>).
                 Usage is billed to the agent owner's account.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Ask AI Tab ── */}
+        {activeTab === "ask" && (
+          <div className="flex flex-col" style={{ height: 320 }}>
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto space-y-3 mb-3">
+              {chatMessages.length === 0 && (
+                <div className="text-center py-8">
+                  <MessageCircle size={24} className="mx-auto mb-2 text-muted-foreground opacity-40" />
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Ask anything about <span className="font-medium text-foreground">{agent.name}</span>
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-1.5">
+                    {["How do I set this up?", "What are the requirements?", "Show me an example"].map((q) => (
+                      <button
+                        key={q}
+                        className="text-[11px] px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-all"
+                        onClick={() => {
+                          setChatInput(q);
+                          setChatMessages([{ role: "user", content: q }]);
+                          chatMutation.mutate(q);
+                        }}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {chatMessages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-lg px-3 py-2 text-xs ${
+                      msg.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-foreground"
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                </div>
+              ))}
+              {chatMutation.isPending && (
+                <div className="flex justify-start">
+                  <div className="bg-muted rounded-lg px-3 py-2">
+                    <Loader2 size={14} className="animate-spin text-muted-foreground" />
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="flex gap-2">
+              <Input
+                placeholder={`Ask about ${agent.name}...`}
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendChat()}
+                className="text-xs h-8"
+                disabled={chatMutation.isPending}
+              />
+              <Button
+                size="sm"
+                className="h-8 px-3"
+                onClick={sendChat}
+                disabled={!chatInput.trim() || chatMutation.isPending}
+              >
+                <Send size={13} />
+              </Button>
             </div>
           </div>
         )}

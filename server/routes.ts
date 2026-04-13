@@ -690,10 +690,78 @@ export async function registerRoutes(
     res.json(agents);
   });
 
+  app.get("/api/agents/trending", async (_req, res) => {
+    try {
+      const allAgents = await storage.getAgents();
+      // Trending score: weighted combo of downloads, stars, and recency
+      const scored = allAgents.map((a) => {
+        const downloadScore = Math.log10(a.downloads + 1) * 10;
+        const starScore = Math.log10(a.stars + 1) * 8;
+        const featuredBonus = a.featured ? 15 : 0;
+        // Newer agents get a boost (using ID as rough proxy for time)
+        const recencyBonus = a.id.startsWith("a") && a.id.length <= 4 ? 0 : 5;
+        const score = downloadScore + starScore + featuredBonus + recencyBonus;
+        return { ...a, _trendScore: score };
+      });
+      scored.sort((a, b) => b._trendScore - a._trendScore);
+      const limit = parseInt(asSingleParam(_req.query.limit as string) || "20", 10);
+      res.json(scored.slice(0, limit));
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get trending agents" });
+    }
+  });
+
+  app.get("/api/agents/recommended", async (_req, res) => {
+    try {
+      const allAgents = await storage.getAgents();
+      // Recommended: diverse mix of categories, prioritize high-quality + free
+      const categories = ["agent", "tool", "api", "content"];
+      const recommended: typeof allAgents = [];
+      for (const cat of categories) {
+        const catAgents = allAgents
+          .filter((a) => a.category === cat)
+          .sort((a, b) => (b.stars + b.downloads) - (a.stars + a.downloads))
+          .slice(0, 5);
+        recommended.push(...catAgents);
+      }
+      // Shuffle slightly for variety
+      for (let i = recommended.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        if (Math.abs(i - j) < 3) [recommended[i], recommended[j]] = [recommended[j], recommended[i]];
+      }
+      const limit = parseInt(asSingleParam(_req.query.limit as string) || "12", 10);
+      res.json(recommended.slice(0, limit));
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get recommended agents" });
+    }
+  });
+
   app.get("/api/agents/:id", async (req, res) => {
     const agent = await storage.getAgent(req.params.id);
     if (!agent) return res.status(404).json({ message: "Agent not found" });
     res.json(agent);
+  });
+
+  // POST /api/agents — publish a new agent (requireAuth, must be a creator)
+  app.post("/api/agents", requireAuth, async (req, res) => {
+    try {
+      const creator = await storage.getCreatorByUserId(req.session.userId!);
+      if (!creator) return res.status(403).json({ message: "You need a creator profile first" });
+
+      const agentData = insertAgentSchema.parse({
+        ...req.body,
+        creatorId: creator.id,
+      });
+      const agent = await storage.createAgent(agentData);
+      await storage.updateCreator(creator.id, { agentCount: creator.agentCount + 1 });
+      res.status(201).json(agent);
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: error.errors[0]?.message || "Invalid input" });
+      }
+      console.error("Create agent error:", error);
+      res.status(500).json({ message: "Failed to create agent" });
+    }
   });
 
   // ─── Creator Agent CRUD ─────────────────────────────────────
