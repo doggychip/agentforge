@@ -13,6 +13,50 @@ const clerkClient = _clerkClient;
 import { storage } from "./storage";
 import { CONTENT_SOURCES } from "./content-sources";
 import { insertAgentSchema, type SafeUser } from "@shared/schema";
+import type { Agent } from "@shared/schema";
+import { HfInference } from "@huggingface/inference";
+
+// Platform AI — powers agent chat when agent's own backend is unavailable
+const PLATFORM_AI_MODEL = process.env.PLATFORM_AI_MODEL || "Qwen/Qwen2.5-72B-Instruct";
+
+function getHfClient(): HfInference | null {
+  const token = process.env.HF_API_TOKEN;
+  if (!token) return null;
+  return new HfInference(token);
+}
+
+async function platformAIChat(
+  agent: Agent,
+  chatHistory: Array<{ role: string; content: string }>,
+): Promise<string> {
+  const hf = getHfClient();
+  if (!hf) return "";
+
+  const systemPrompt = `You are "${agent.name}", an AI agent on the AgentForge marketplace.
+
+Description: ${agent.description}
+${agent.longDescription ? `Details: ${agent.longDescription}` : ""}
+Tags: ${(agent.tags as string[] || []).join(", ")}
+Category: ${agent.category}
+
+Stay in character. Be helpful, concise, and knowledgeable about your domain. Use markdown formatting when appropriate.`;
+
+  const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+    { role: "system", content: systemPrompt },
+    ...chatHistory.map(m => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    })),
+  ];
+
+  const res = await hf.chatCompletion({
+    model: agent.hfModelId || PLATFORM_AI_MODEL,
+    messages,
+    max_tokens: 1024,
+  });
+
+  return res.choices?.[0]?.message?.content || "";
+}
 
 // Stripe setup — set STRIPE_SECRET_KEY in environment
 const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || "";
@@ -1944,29 +1988,12 @@ export async function registerRoutes(
     let assistantContent = "";
 
     try {
-      if (agent.backendType === "hf-inference" && agent.hfModelId) {
-        const hfToken = process.env.HF_API_TOKEN;
-        if (!hfToken) {
-          assistantContent = "I'm currently unavailable — the inference service is not configured. Please try again later.";
-        } else {
-          const hfRes = await fetch("https://router.huggingface.co/v1/chat/completions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${hfToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: agent.hfModelId, messages: chatHistory }),
-          });
-          if (hfRes.ok) {
-            const data = await hfRes.json();
-            assistantContent = data.choices?.[0]?.message?.content || "No response from model.";
-          } else {
-            assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nThe inference service is temporarily unavailable. This is a demo response. Please try again later.`;
-          }
-        }
-      } else if (agent.backendType === "self-hosted" && agent.apiEndpoint) {
-        // Validate no SSRF
+      // 1. Try the agent's own backend first (self-hosted with a real API endpoint)
+      if (agent.backendType === "self-hosted" && agent.apiEndpoint) {
         const targetUrl = new URL(agent.apiEndpoint);
-        if (["localhost", "127.0.0.1", "0.0.0.0"].includes(targetUrl.hostname)) {
-          assistantContent = "This agent's endpoint is not accessible.";
-        } else {
+        const isRealApi = !["localhost", "127.0.0.1", "0.0.0.0"].includes(targetUrl.hostname)
+          && !targetUrl.hostname.includes("github.com");
+        if (isRealApi) {
           try {
             const proxyRes = await fetch(agent.apiEndpoint, {
               method: "POST",
@@ -1976,22 +2003,23 @@ export async function registerRoutes(
             if (proxyRes.ok) {
               const data = await proxyRes.json();
               assistantContent = data.choices?.[0]?.message?.content || data.response || data.content || JSON.stringify(data);
-            } else {
-              // Backend unavailable — fall back to demo response
-              assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nThis is a demo conversation. The agent's inference backend is currently unavailable, but you can explore the agent's documentation and capabilities here.\n\nTags: ${(agent.tags as string[] || []).join(", ")}`;
             }
-          } catch {
-            // Network error reaching backend — fall back to demo response
-            assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nThis is a demo conversation. The agent's inference backend is currently unreachable, but you can explore the agent's documentation and capabilities here.\n\nTags: ${(agent.tags as string[] || []).join(", ")}`;
-          }
+          } catch {}
         }
-      } else {
-        // Demo fallback for agents without a configured backend
-        assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nThis is a demo conversation. To get full functionality, the agent creator needs to configure an inference backend.\n\nFeel free to explore what I can do!`;
+      }
+
+      // 2. Fall back to platform AI (HuggingFace Inference)
+      if (!assistantContent) {
+        assistantContent = await platformAIChat(agent, chatHistory);
+      }
+
+      // 3. Static fallback if no AI service is configured
+      if (!assistantContent) {
+        assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nAI responses require the \`HF_API_TOKEN\` environment variable to be set. Please configure it with a [free HuggingFace token](https://huggingface.co/settings/tokens) to enable AI chat.`;
       }
     } catch (err: any) {
       console.error("Playground invoke error:", err);
-      assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nSomething went wrong reaching the backend. This is a demo response instead.`;
+      assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nSomething went wrong. Please try again.`;
     }
 
     const assistantMsg = await storage.createMessage({ conversationId: conv.id, role: "assistant", content: assistantContent });
