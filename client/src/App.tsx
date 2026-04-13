@@ -29,6 +29,7 @@ import ForCreators from "@/pages/ForCreators";
 import ResetPassword from "@/pages/ResetPassword";
 import Pricing from "@/pages/Pricing";
 import Playground from "@/pages/Playground";
+import Discover from "@/pages/Discover";
 import CreatorDashboard from "@/pages/CreatorDashboard";
 import PublishAgent from "@/pages/PublishAgent";
 import NotFound from "@/pages/not-found";
@@ -39,6 +40,7 @@ function AppRouter() {
       <Switch>
         <Route path="/" component={ForCreators} />
         <Route path="/explore" component={Home} />
+        <Route path="/discover" component={Discover} />
         <Route path="/agents" component={Agents} />
         <Route path="/agents/:id" component={AgentDetail} />
         <Route path="/playground/:id" component={Playground} />

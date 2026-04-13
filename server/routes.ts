@@ -747,6 +747,22 @@ export async function registerRoutes(
     res.json(agents);
   });
 
+  app.get("/api/agents/new-arrivals", async (_req, res) => {
+    try {
+      const allAgents = await storage.getAgents();
+      // Sort by ID descending — UUID-style IDs are newer than short IDs like "a1"
+      const sorted = [...allAgents].sort((a, b) => {
+        // UUIDs (longer IDs) are newer than short IDs
+        if (a.id.length !== b.id.length) return b.id.length - a.id.length;
+        return b.id.localeCompare(a.id);
+      });
+      const limit = parseInt(asSingleParam(_req.query.limit as string) || "20", 10);
+      res.json(sorted.slice(0, limit));
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get new arrivals" });
+    }
+  });
+
   app.get("/api/agents/trending", async (_req, res) => {
     try {
       const allAgents = await storage.getAgents();
