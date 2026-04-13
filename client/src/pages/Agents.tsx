@@ -14,9 +14,10 @@ import {
 } from "@/components/ui/select";
 import {
   Star, Download, Bot, Wrench, FileText, Globe, ArrowUpDown, SlidersHorizontal,
-  X as XIcon, Search,
+  X as XIcon, Search, TrendingUp, Shield, Database, Code, Music, Cpu, MessageSquare,
+  BookOpen, Brain, Zap,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { AgentAvatar } from "@/components/AgentAvatar";
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -32,6 +33,26 @@ const categoryLabels: Record<string, string> = {
   content: "Content",
   api: "API",
 };
+
+const categoryColors: Record<string, string> = {
+  agent: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  tool: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  content: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+  api: "bg-teal-500/10 text-teal-600 border-teal-500/20",
+};
+
+const taskTypes = [
+  { value: "trading", label: "Trading & Finance", icon: <TrendingUp size={13} />, tags: ["trading", "crypto", "defi", "stocks", "fintech", "finance", "quantitative", "etf", "forex"] },
+  { value: "devops", label: "DevOps & Infra", icon: <Cpu size={13} />, tags: ["kubernetes", "devops", "ci-cd", "monitoring", "cloud", "infrastructure", "docker"] },
+  { value: "security", label: "Security", icon: <Shield size={13} />, tags: ["security", "pentesting", "smart-contracts", "solidity", "audit", "web3-security"] },
+  { value: "code", label: "Code & Dev", icon: <Code size={13} />, tags: ["code-review", "code-gen", "coding-agent", "documentation", "developer-productivity", "github"] },
+  { value: "data", label: "Data & Analytics", icon: <Database size={13} />, tags: ["data", "etl", "sql", "analytics", "text-to-sql", "rag", "data-analysis", "data-visualization"] },
+  { value: "nlp", label: "NLP & Language", icon: <MessageSquare size={13} />, tags: ["nlp", "chinese", "japanese", "korean", "multilingual", "chatbot", "llm"] },
+  { value: "automation", label: "Automation", icon: <Zap size={13} />, tags: ["automation", "workflow", "no-code", "scheduling", "social"] },
+  { value: "research", label: "Research", icon: <BookOpen size={13} />, tags: ["research", "deep-research", "education", "academic", "benchmark"] },
+  { value: "creative", label: "Creative & Media", icon: <Music size={13} />, tags: ["music", "design", "video", "text-to-image", "content creation"] },
+  { value: "ai-infra", label: "AI Infrastructure", icon: <Brain size={13} />, tags: ["memory", "mcp", "agent", "multi-agent", "framework", "orchestration"] },
+];
 
 function formatPrice(price: number | null, pricing: string) {
   if (pricing === "free" || !price) return "Free";
@@ -88,7 +109,10 @@ export default function Agents() {
   const [activeLanguage, setActiveLanguage] = useState("all");
   const [pricingFilter, setPricingFilter] = useState<"all" | "free" | "paid">("all");
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [activeTaskType, setActiveTaskType] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState("popular");
+  const [tagsExpanded, setTagsExpanded] = useState(false);
+  const tagsRef = useRef<HTMLDivElement>(null);
 
   const { data: agents, isLoading } = useQuery<Agent[]>({
     queryKey: ["/api/agents"],
@@ -141,6 +165,15 @@ export default function Agents() {
       result = result.filter((a) => !isFreeAgent(a));
     }
 
+    if (activeTaskType) {
+      const tt = taskTypes.find((t) => t.value === activeTaskType);
+      if (tt) {
+        result = result.filter((a) =>
+          a.tags.some((t) => tt.tags.includes(t.toLowerCase()))
+        );
+      }
+    }
+
     if (activeTag) {
       result = result.filter((a) => a.tags.includes(activeTag));
     }
@@ -155,13 +188,14 @@ export default function Agents() {
     });
 
     return result;
-  }, [agents, searchQuery, activeCategory, activeLanguage, pricingFilter, activeTag, sortBy, creatorsMap]);
+  }, [agents, searchQuery, activeCategory, activeLanguage, pricingFilter, activeTag, activeTaskType, sortBy, creatorsMap]);
 
   const activeFilterCount =
     (activeCategory !== "all" ? 1 : 0) +
     (activeLanguage !== "all" ? 1 : 0) +
     (pricingFilter !== "all" ? 1 : 0) +
     (activeTag ? 1 : 0) +
+    (activeTaskType ? 1 : 0) +
     (searchQuery ? 1 : 0);
 
   function clearFilters() {
@@ -170,6 +204,7 @@ export default function Agents() {
     setActiveLanguage("all");
     setPricingFilter("all");
     setActiveTag(null);
+    setActiveTaskType(null);
   }
 
   return (
@@ -210,79 +245,118 @@ export default function Agents() {
         </div>
       </div>
 
-      {/* Filter Toolbar */}
+      {/* Category Tabs — HuggingFace style */}
+      <div className="flex items-center gap-2 mb-4 border-b border-border pb-3" data-testid="filter-categories">
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              activeCategory === cat
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+            onClick={() => setActiveCategory(cat)}
+            data-testid={`button-category-${cat}`}
+          >
+            {cat !== "all" && categoryIcons[cat]}
+            <span className="capitalize">{cat === "all" ? "All Types" : categoryLabels[cat] + "s"}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Task Type Classification — HuggingFace style chips */}
       <div className="flex flex-col gap-3 mb-6">
-        {/* Category chips */}
-        <div className="flex items-center gap-1.5 flex-wrap" data-testid="filter-categories">
-          {categories.map((cat) => (
-            <Button
-              key={cat}
-              variant={activeCategory === cat ? "default" : "outline"}
-              size="sm"
-              className="h-7 text-xs capitalize"
-              onClick={() => setActiveCategory(cat)}
-              data-testid={`button-category-${cat}`}
+        <div
+          ref={tagsRef}
+          className="flex items-center gap-1.5 flex-wrap overflow-hidden transition-all duration-300"
+          style={{ maxHeight: tagsExpanded ? tagsRef.current?.scrollHeight : 36 }}
+          data-testid="filter-task-types"
+        >
+          {taskTypes.map((tt) => (
+            <button
+              key={tt.value}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                activeTaskType === tt.value
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
+              }`}
+              onClick={() => setActiveTaskType(activeTaskType === tt.value ? null : tt.value)}
+              data-testid={`button-task-${tt.value}`}
             >
-              {cat}
-            </Button>
+              {tt.icon}
+              {tt.label}
+            </button>
           ))}
         </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-[11px] text-muted-foreground hover:text-foreground px-1"
+            onClick={() => setTagsExpanded(!tagsExpanded)}
+            data-testid="button-toggle-tasks"
+          >
+            {tagsExpanded ? "Fewer \u25B4" : "More \u25BE"}
+          </Button>
 
-        {/* Language chips */}
-        <div className="flex items-center gap-2 flex-wrap" data-testid="filter-languages">
-          <div className="flex items-center gap-1">
-            <Globe size={13} className="text-muted-foreground" />
-            <span className="text-xs text-muted-foreground font-medium">Language:</span>
-          </div>
-          {languageFilters.map((lang) => (
-            <Button
-              key={lang.value}
-              variant={activeLanguage === lang.value ? "default" : "outline"}
-              size="sm"
-              className="h-6 text-[11px] px-2.5"
-              onClick={() => setActiveLanguage(lang.value)}
-              data-testid={`button-lang-${lang.value}`}
-            >
-              {lang.label}
-            </Button>
-          ))}
-        </div>
+          <div className="h-4 w-px bg-border" />
 
-        {/* Pricing + Tag row */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1">
-            <SlidersHorizontal size={13} className="text-muted-foreground" />
-            <span className="text-xs text-muted-foreground font-medium">Price:</span>
+          {/* Language */}
+          <div className="flex items-center gap-1.5">
+            <Globe size={12} className="text-muted-foreground" />
+            {languageFilters.map((lang) => (
+              <button
+                key={lang.value}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
+                  activeLanguage === lang.value
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                onClick={() => setActiveLanguage(lang.value)}
+                data-testid={`button-lang-${lang.value}`}
+              >
+                {lang.label}
+              </button>
+            ))}
           </div>
-          {(["all", "free", "paid"] as const).map((p) => (
-            <Button
-              key={p}
-              variant={pricingFilter === p ? "default" : "outline"}
-              size="sm"
-              className="h-6 text-[11px] capitalize px-2.5"
-              onClick={() => setPricingFilter(p)}
-              data-testid={`button-pricing-${p}`}
-            >
-              {p === "all" ? "Any" : p}
-            </Button>
-          ))}
+
+          <div className="h-4 w-px bg-border" />
+
+          {/* Pricing */}
+          <div className="flex items-center gap-1.5">
+            <SlidersHorizontal size={12} className="text-muted-foreground" />
+            {(["all", "free", "paid"] as const).map((p) => (
+              <button
+                key={p}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium capitalize transition-all ${
+                  pricingFilter === p
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                onClick={() => setPricingFilter(p)}
+                data-testid={`button-pricing-${p}`}
+              >
+                {p === "all" ? "Any" : p}
+              </button>
+            ))}
+          </div>
+
+          <div className="h-4 w-px bg-border" />
 
           {/* Tag select */}
-          <div className="ml-2">
-            <Select value={activeTag || "__none__"} onValueChange={(v) => setActiveTag(v === "__none__" ? null : v)}>
-              <SelectTrigger className="h-6 w-[140px] text-[11px]" data-testid="select-tag">
-                <SelectValue placeholder="Filter by tag..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__" className="text-[11px]">All tags</SelectItem>
-                {allTags.map((tag) => (
-                  <SelectItem key={tag} value={tag} className="text-[11px]">
-                    {tag}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={activeTag || "__none__"} onValueChange={(v) => setActiveTag(v === "__none__" ? null : v)}>
+            <SelectTrigger className="h-6 w-[130px] text-[11px]" data-testid="select-tag">
+              <SelectValue placeholder="Tag..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__" className="text-[11px]">All tags</SelectItem>
+              {allTags.map((tag) => (
+                <SelectItem key={tag} value={tag} className="text-[11px]">
+                  {tag}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {activeFilterCount > 0 && (
             <Button
@@ -337,7 +411,8 @@ export default function Agents() {
                         )}
                       </div>
                     </div>
-                    <Badge variant="secondary" className="text-[10px] font-medium shrink-0 uppercase tracking-wider">
+                    <Badge variant="outline" className={`text-[10px] font-medium shrink-0 uppercase tracking-wider gap-1 ${categoryColors[agent.category] || ""}`}>
+                      {categoryIcons[agent.category]}
                       {categoryLabels[agent.category]}
                     </Badge>
                   </div>

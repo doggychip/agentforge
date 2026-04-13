@@ -11,8 +11,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Shield, Bot, Users, Search, ArrowUpDown, X as XIcon } from "lucide-react";
+import {
+  Shield, Bot, Users, Search, ArrowUpDown, X as XIcon, TrendingUp, Database,
+  Code, MessageSquare, Cpu, Zap, Globe,
+} from "lucide-react";
 import { useState, useMemo, useRef } from "react";
+
+const creatorTaskTypes = [
+  { value: "trading", label: "Trading & Finance", icon: <TrendingUp size={13} />, tags: ["trading", "crypto", "defi", "stocks", "fintech", "finance", "quantitative", "quant"] },
+  { value: "devops", label: "DevOps & Infra", icon: <Cpu size={13} />, tags: ["devops", "kubernetes", "cloud", "infrastructure", "monitoring"] },
+  { value: "code", label: "Code & Dev Tools", icon: <Code size={13} />, tags: ["code-review", "coding-agent", "developer-productivity", "documentation", "github"] },
+  { value: "nlp", label: "NLP & Language", icon: <MessageSquare size={13} />, tags: ["nlp", "chinese", "japanese", "korean", "multilingual", "chatbot"] },
+  { value: "data", label: "Data & Analytics", icon: <Database size={13} />, tags: ["data", "etl", "analytics", "data-analysis", "data-visualization"] },
+  { value: "automation", label: "Automation", icon: <Zap size={13} />, tags: ["automation", "workflow", "scheduling", "social", "e-commerce"] },
+  { value: "regional", label: "Regional", icon: <Globe size={13} />, tags: ["hong-kong", "taiwan", "korea", "japan", "singapore", "india", "vietnam", "indonesia", "malaysia"] },
+];
 
 function formatNumber(n: number) {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
@@ -30,6 +43,7 @@ export default function Creators() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("popular");
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [activeTaskType, setActiveTaskType] = useState<string | null>(null);
   const [tagsExpanded, setTagsExpanded] = useState(false);
   const tagsRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +72,15 @@ export default function Creators() {
       );
     }
 
+    if (activeTaskType) {
+      const tt = creatorTaskTypes.find((t) => t.value === activeTaskType);
+      if (tt) {
+        result = result.filter((c) =>
+          c.tags.some((t) => tt.tags.includes(t.toLowerCase()))
+        );
+      }
+    }
+
     if (activeTag) {
       result = result.filter((c) => c.tags.includes(activeTag));
     }
@@ -72,13 +95,14 @@ export default function Creators() {
     });
 
     return result;
-  }, [creators, searchQuery, sortBy, activeTag]);
+  }, [creators, searchQuery, sortBy, activeTag, activeTaskType]);
 
-  const activeFilterCount = (searchQuery ? 1 : 0) + (activeTag ? 1 : 0);
+  const activeFilterCount = (searchQuery ? 1 : 0) + (activeTag ? 1 : 0) + (activeTaskType ? 1 : 0);
 
   function clearFilters() {
     setSearchQuery("");
     setActiveTag(null);
+    setActiveTaskType(null);
   }
 
   return (
@@ -117,6 +141,25 @@ export default function Creators() {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      {/* Task Type Classification */}
+      <div className="flex items-center gap-1.5 flex-wrap mb-3" data-testid="filter-task-types-creators">
+        {creatorTaskTypes.map((tt) => (
+          <button
+            key={tt.value}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+              activeTaskType === tt.value
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
+            }`}
+            onClick={() => setActiveTaskType(activeTaskType === tt.value ? null : tt.value)}
+            data-testid={`button-creator-task-${tt.value}`}
+          >
+            {tt.icon}
+            {tt.label}
+          </button>
+        ))}
       </div>
 
       {/* Tag filters */}
