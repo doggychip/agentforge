@@ -53,6 +53,7 @@ export const agents = pgTable("agents", {
   hfSpaceUrl: text("hf_space_url"), // Hugging Face Space embed URL
   hfModelId: text("hf_model_id"), // Hugging Face model ID (e.g. "meta-llama/Llama-3-8B")
   backendType: text("backend_type").notNull().default("self-hosted"), // "self-hosted" | "hf-inference"
+  dockerImage: text("docker_image"), // optional Docker image for one-click deploy
   status: text("status").notNull().default("active"), // "active" | "beta" | "deprecated"
   featured: boolean("featured").notNull().default(false),
 });
@@ -140,6 +141,7 @@ export const apiKeys = pgTable("api_keys", {
   name: text("name").notNull(),
   keyHash: text("key_hash").notNull(),
   keyPrefix: text("key_prefix").notNull(),
+  agentId: varchar("agent_id"), // null = global key, non-null = scoped to agent
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   revoked: boolean("revoked").notNull().default(false),
@@ -152,10 +154,23 @@ export const apiUsageLogs = pgTable("api_usage_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   apiKeyId: varchar("api_key_id").notNull(),
   userId: varchar("user_id").notNull(),
+  agentId: varchar("agent_id"), // track which agent was called
   endpoint: text("endpoint").notNull(),
   statusCode: integer("status_code").notNull(),
   responseTimeMs: integer("response_time_ms"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Agent API Keys — for agent-to-agent (A2A) communication
+export const agentApiKeys = pgTable("agent_api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull(), // the subscribing agent
+  ownerId: varchar("owner_id").notNull(), // user who owns the agent
+  name: text("name").notNull(),
+  keyHash: text("key_hash").notNull(),
+  keyPrefix: text("key_prefix").notNull(), // af_a_ prefix
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  revoked: boolean("revoked").notNull().default(false),
 });
 
 // Playground conversations
@@ -227,6 +242,10 @@ export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 export const insertApiUsageLogSchema = createInsertSchema(apiUsageLogs).omit({ id: true, createdAt: true });
 export type ApiUsageLog = typeof apiUsageLogs.$inferSelect;
 export type InsertApiUsageLog = z.infer<typeof insertApiUsageLogSchema>;
+
+export const insertAgentApiKeySchema = createInsertSchema(agentApiKeys).omit({ id: true, createdAt: true, revoked: true });
+export type AgentApiKey = typeof agentApiKeys.$inferSelect;
+export type InsertAgentApiKey = z.infer<typeof insertAgentApiKeySchema>;
 
 export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, updatedAt: true });
 export type Conversation = typeof conversations.$inferSelect;

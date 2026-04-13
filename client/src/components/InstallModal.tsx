@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { Agent } from "@shared/schema";
 import {
   Dialog,
@@ -6,11 +7,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { apiRequest } from "@/lib/queryClient";
 import {
-  Copy, CheckCircle, Terminal, Box, Globe, Settings, Download,
+  Copy, CheckCircle, Terminal, Box, Globe, Settings, Download, Key,
+  Wifi, WifiOff, Loader2, Server, Bot, Zap,
 } from "lucide-react";
 
 function CodeBlock({ code, label }: { code: string; label?: string }) {
@@ -46,27 +57,13 @@ function CodeBlock({ code, label }: { code: string; label?: string }) {
 }
 
 function getMcpConfig(agent: Agent): string | null {
-  const endpoint = agent.apiEndpoint;
-  if (!endpoint) return null;
-
   const name = agent.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
-
-  // If it's a known MCP endpoint or has mcp in tags
   const isMcp = agent.tags.some((t) => t.toLowerCase().includes("mcp")) ||
     agent.description.toLowerCase().includes("mcp");
-
-  if (!isMcp && !endpoint) return null;
+  if (!isMcp) return null;
 
   return JSON.stringify(
-    {
-      mcpServers: {
-        [name]: {
-          command: "npx",
-          args: ["-y", name],
-          env: {},
-        },
-      },
-    },
+    { mcpServers: { [name]: { command: "npx", args: ["-y", name], env: {} } } },
     null,
     2,
   );
@@ -75,35 +72,23 @@ function getMcpConfig(agent: Agent): string | null {
 function getInstallCommands(agent: Agent): { npm?: string; pip?: string; docker?: string; git?: string } {
   const endpoint = agent.apiEndpoint || "";
   const cmds: { npm?: string; pip?: string; docker?: string; git?: string } = {};
-
-  // Detect package manager from endpoint/tags
   const tags = agent.tags.map((t) => t.toLowerCase()).join(" ");
   const desc = agent.description.toLowerCase();
-  const name = agent.name.toLowerCase();
 
-  if (endpoint.includes("github.com")) {
-    cmds.git = `git clone ${endpoint}`;
+  if (endpoint.includes("github.com")) cmds.git = `git clone ${endpoint}`;
+  if (endpoint.includes("npmjs.org") || tags.includes("cli") || tags.includes("mcp")) {
+    cmds.npm = `npx ${agent.name.toLowerCase().replace(/[^a-z0-9-]+/g, "-")}`;
   }
-
-  if (endpoint.includes("npmjs.org") || endpoint.includes("npm") || tags.includes("cli") || tags.includes("mcp")) {
-    const pkg = agent.name.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
-    cmds.npm = `npx ${pkg}`;
-  }
-
   if (tags.includes("python") || tags.includes("pip") || desc.includes("python")) {
-    const pkg = agent.name.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
-    cmds.pip = `pip install ${pkg}`;
+    cmds.pip = `pip install ${agent.name.toLowerCase().replace(/[^a-z0-9-]+/g, "-")}`;
   }
-
   if (tags.includes("docker") || desc.includes("docker")) {
-    const pkg = agent.name.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
-    cmds.docker = `docker run -d ${pkg}`;
+    cmds.docker = `docker run -d ${agent.name.toLowerCase().replace(/[^a-z0-9-]+/g, "-")}`;
   }
-
   return cmds;
 }
 
-type InstallTab = "setup" | "mcp" | "api";
+type InstallTab = "setup" | "mcp" | "api" | "connect" | "deploy" | "a2a";
 
 export function InstallModal({
   agent,
@@ -114,23 +99,63 @@ export function InstallModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { toast } = useToast();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<InstallTab>("setup");
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [deployFormat, setDeployFormat] = useState("docker-compose");
 
   const mcpConfig = getMcpConfig(agent);
   const installCmds = getInstallCommands(agent);
   const hasMcp = !!mcpConfig;
   const hasApi = !!agent.apiEndpoint;
-  const hasInstallCmds = Object.keys(installCmds).length > 0;
+
+  // Connectivity test
+  const connectMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/agents/${agent.id}/test-connect`);
+      return res.json();
+    },
+  });
+
+  // API key generation
+  const keyMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/agents/${agent.id}/keys`, {
+        name: `${agent.name} Key`,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setGeneratedKey(data.key);
+    },
+    onError: () => {
+      toast({ title: "Failed to generate key", variant: "destructive" });
+    },
+  });
+
+  // Deploy config
+  const { data: deployConfig, isLoading: deployLoading } = useQuery<{ config: string }>({
+    queryKey: ["/api/agents", agent.id, "deploy-config", deployFormat],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/agents/${agent.id}/deploy-config?format=${deployFormat}`);
+      return res.json();
+    },
+    enabled: activeTab === "deploy" && !!user,
+  });
 
   const tabs: { id: InstallTab; label: string; icon: React.ReactNode }[] = [
     { id: "setup", label: "Setup", icon: <Download size={13} /> },
-    ...(hasMcp ? [{ id: "mcp" as const, label: "MCP Config", icon: <Settings size={13} /> }] : []),
-    ...(hasApi ? [{ id: "api" as const, label: "API", icon: <Globe size={13} /> }] : []),
+    ...(hasMcp ? [{ id: "mcp" as const, label: "MCP", icon: <Settings size={13} /> }] : []),
+    ...(hasApi ? [{ id: "api" as const, label: "API Key", icon: <Key size={13} /> }] : []),
+    ...(hasApi ? [{ id: "connect" as const, label: "Connect", icon: <Wifi size={13} /> }] : []),
+    { id: "deploy", label: "Deploy", icon: <Server size={13} /> },
+    { id: "a2a", label: "A2A", icon: <Bot size={13} /> },
   ];
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <CheckCircle size={18} className="text-emerald-500" />
@@ -139,11 +164,11 @@ export function InstallModal({
         </DialogHeader>
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 border-b border-border pb-2">
+        <div className="flex items-center gap-1 border-b border-border pb-2 flex-wrap">
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all ${
                 activeTab === tab.id
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -156,23 +181,21 @@ export function InstallModal({
           ))}
         </div>
 
-        {/* Setup Tab */}
+        {/* ── Setup Tab ── */}
         {activeTab === "setup" && (
           <div className="space-y-4">
             <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
               <CheckCircle size={16} className="text-emerald-500 mt-0.5 shrink-0" />
               <div className="text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">{agent.name}</span> has been added to your agents.
-                You can manage it from your{" "}
-                <a href="/profile" className="text-primary underline">profile</a>.
+                Manage it from your <a href="/profile" className="text-primary underline">profile</a>.
               </div>
             </div>
 
-            {hasInstallCmds ? (
+            {Object.keys(installCmds).length > 0 ? (
               <div className="space-y-3">
                 <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                  <Terminal size={13} />
-                  Install locally
+                  <Terminal size={13} /> Install locally
                 </p>
                 {installCmds.npm && <CodeBlock code={installCmds.npm} label="npm / npx" />}
                 {installCmds.pip && <CodeBlock code={installCmds.pip} label="pip" />}
@@ -182,88 +205,241 @@ export function InstallModal({
             ) : (
               <div className="space-y-3">
                 <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                  <Box size={13} />
-                  Getting started
+                  <Box size={13} /> Getting started
                 </p>
-                <div className="text-xs text-muted-foreground space-y-2">
+                <p className="text-xs text-muted-foreground">
                   {agent.apiEndpoint ? (
-                    <p>
-                      Visit the{" "}
-                      <a
-                        href={agent.apiEndpoint}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary underline"
-                      >
-                        project page
-                      </a>{" "}
-                      for setup instructions.
-                    </p>
+                    <>Visit the <a href={agent.apiEndpoint} target="_blank" rel="noopener noreferrer" className="text-primary underline">project page</a> for setup instructions.</>
                   ) : (
-                    <p>This agent is self-hosted. Check the project documentation for setup instructions.</p>
+                    "This agent is self-hosted. Check the project documentation for setup instructions."
                   )}
-                </div>
+                </p>
               </div>
             )}
 
             {agent.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-2 border-t border-border">
                 {agent.tags.slice(0, 6).map((tag) => (
-                  <Badge key={tag} variant="secondary" className="text-[10px]">
-                    {tag}
-                  </Badge>
+                  <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>
                 ))}
               </div>
             )}
           </div>
         )}
 
-        {/* MCP Config Tab */}
+        {/* ── MCP Config Tab ── */}
         {activeTab === "mcp" && mcpConfig && (
           <div className="space-y-4">
-            <div className="text-xs text-muted-foreground">
-              Add this to your <code className="px-1 py-0.5 rounded bg-muted font-mono text-[11px]">claude_desktop_config.json</code> or
-              Cursor MCP settings to connect this agent.
-            </div>
-
-            <CodeBlock
-              code={mcpConfig}
-              label="claude_desktop_config.json"
-            />
-
-            <div className="space-y-2">
-              <p className="text-[11px] font-medium text-foreground">Config file locations:</p>
-              <div className="text-[11px] text-muted-foreground space-y-1">
-                <p><span className="font-mono bg-muted px-1 rounded">macOS:</span> ~/Library/Application Support/Claude/claude_desktop_config.json</p>
-                <p><span className="font-mono bg-muted px-1 rounded">Windows:</span> %APPDATA%\Claude\claude_desktop_config.json</p>
-                <p><span className="font-mono bg-muted px-1 rounded">Cursor:</span> Settings &gt; MCP Servers &gt; Add Server</p>
-              </div>
+            <p className="text-xs text-muted-foreground">
+              Add this to your <code className="px-1 py-0.5 rounded bg-muted font-mono text-[11px]">claude_desktop_config.json</code> or Cursor MCP settings.
+            </p>
+            <CodeBlock code={mcpConfig} label="claude_desktop_config.json" />
+            <div className="text-[11px] text-muted-foreground space-y-1">
+              <p><span className="font-mono bg-muted px-1 rounded">macOS:</span> ~/Library/Application Support/Claude/claude_desktop_config.json</p>
+              <p><span className="font-mono bg-muted px-1 rounded">Windows:</span> %APPDATA%\Claude\claude_desktop_config.json</p>
+              <p><span className="font-mono bg-muted px-1 rounded">Cursor:</span> Settings &gt; MCP Servers &gt; Add Server</p>
             </div>
           </div>
         )}
 
-        {/* API Tab */}
-        {activeTab === "api" && hasApi && (
+        {/* ── API Key Tab ── */}
+        {activeTab === "api" && (
           <div className="space-y-4">
-            <div className="text-xs text-muted-foreground">
-              Connect to this agent's API endpoint directly.
+            <p className="text-xs text-muted-foreground">
+              Generate an API key scoped to this agent for programmatic access.
+            </p>
+
+            {generatedKey ? (
+              <div className="space-y-3">
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                  <Key size={14} className="text-amber-500 mt-0.5 shrink-0" />
+                  <div className="text-xs text-muted-foreground">
+                    Copy your key now — <span className="font-medium text-foreground">it won't be shown again</span>.
+                  </div>
+                </div>
+                <CodeBlock code={generatedKey} label="Your API Key" />
+                <CodeBlock
+                  code={`curl -X POST "${agent.apiEndpoint || `https://api.agentforge.dev/v1/agents/${agent.id}/invoke`}" \\
+  -H "Authorization: Bearer ${generatedKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"input": "your data here"}'`}
+                  label="Example request"
+                />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {hasApi && <CodeBlock code={agent.apiEndpoint!} label="Endpoint" />}
+                <Button
+                  size="sm"
+                  className="text-xs gap-1.5 w-full"
+                  onClick={() => keyMutation.mutate()}
+                  disabled={keyMutation.isPending}
+                >
+                  {keyMutation.isPending ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Key size={13} />
+                  )}
+                  Generate API Key
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Connect Tab ── */}
+        {activeTab === "connect" && (
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Test connectivity to this agent's live endpoint.
+            </p>
+
+            {agent.apiEndpoint && (
+              <CodeBlock code={agent.apiEndpoint} label="Endpoint" />
+            )}
+
+            <Button
+              size="sm"
+              className="text-xs gap-1.5 w-full"
+              onClick={() => connectMutation.mutate()}
+              disabled={connectMutation.isPending}
+            >
+              {connectMutation.isPending ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Zap size={13} />
+              )}
+              Test Connection
+            </Button>
+
+            {connectMutation.data && (
+              <div className={`flex items-center gap-3 p-3 rounded-lg border ${
+                connectMutation.data.reachable
+                  ? "bg-emerald-500/5 border-emerald-500/20"
+                  : "bg-red-500/5 border-red-500/20"
+              }`}>
+                {connectMutation.data.reachable ? (
+                  <Wifi size={16} className="text-emerald-500 shrink-0" />
+                ) : (
+                  <WifiOff size={16} className="text-red-500 shrink-0" />
+                )}
+                <div className="text-xs">
+                  <p className={`font-medium ${connectMutation.data.reachable ? "text-emerald-600" : "text-red-600"}`}>
+                    {connectMutation.data.reachable ? "Connected" : "Unreachable"}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {connectMutation.data.latencyMs && `${connectMutation.data.latencyMs}ms`}
+                    {connectMutation.data.statusCode && ` · HTTP ${connectMutation.data.statusCode}`}
+                    {connectMutation.data.error && ` · ${connectMutation.data.error}`}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Deploy Tab ── */}
+        {activeTab === "deploy" && (
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Generate deployment configs to self-host this agent on your infrastructure.
+            </p>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Format:</span>
+              <Select value={deployFormat} onValueChange={setDeployFormat}>
+                <SelectTrigger className="h-7 w-[160px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="docker-compose" className="text-xs">Docker Compose</SelectItem>
+                  <SelectItem value="dockerfile" className="text-xs">Dockerfile</SelectItem>
+                  <SelectItem value="fly-toml" className="text-xs">Fly.io (fly.toml)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {deployLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={20} className="animate-spin text-muted-foreground" />
+              </div>
+            ) : deployConfig?.config ? (
+              <div className="space-y-3">
+                <CodeBlock
+                  code={deployConfig.config}
+                  label={deployFormat === "docker-compose" ? "docker-compose.yml" : deployFormat === "dockerfile" ? "Dockerfile" : "fly.toml"}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs gap-1.5 w-full"
+                  onClick={() => {
+                    const ext = deployFormat === "docker-compose" ? "yml" : deployFormat === "dockerfile" ? "Dockerfile" : "toml";
+                    const filename = deployFormat === "dockerfile" ? "Dockerfile" : `${deployFormat === "docker-compose" ? "docker-compose" : "fly"}.${ext}`;
+                    const blob = new Blob([deployConfig.config], { type: "text/plain" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = filename;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  <Download size={13} />
+                  Download {deployFormat === "dockerfile" ? "Dockerfile" : `config file`}
+                </Button>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Sign in to generate deploy configs.</p>
+            )}
+          </div>
+        )}
+
+        {/* ── A2A Tab ── */}
+        {activeTab === "a2a" && (
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Connect your AI agent to <span className="font-medium text-foreground">{agent.name}</span> for
+              agent-to-agent communication.
+            </p>
+
+            <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+              <p className="text-xs font-medium text-foreground mb-2 flex items-center gap-1.5">
+                <Bot size={13} /> How A2A works
+              </p>
+              <ol className="text-[11px] text-muted-foreground space-y-1.5 list-decimal list-inside">
+                <li>Your agent subscribes to this agent via the API</li>
+                <li>Generate an agent API key (prefix: <code className="bg-muted px-1 rounded font-mono">af_a_</code>)</li>
+                <li>Your agent authenticates with the key to make API calls</li>
+                <li>Usage is tracked per-agent for billing</li>
+              </ol>
             </div>
 
             <CodeBlock
-              code={agent.apiEndpoint!}
-              label="Endpoint"
-            />
+              code={`# Subscribe your agent
+curl -X POST "https://patreon.zeabur.app/api/agents/${agent.id}/subscribe-agent" \\
+  -H "Authorization: Bearer YOUR_SESSION" \\
+  -H "Content-Type: application/json" \\
+  -d '{"sourceAgentId": "YOUR_AGENT_ID"}'
 
-            <CodeBlock
-              code={`curl -X GET "${agent.apiEndpoint}" \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -H "Content-Type: application/json"`}
-              label="Example request"
+# Generate A2A API key
+curl -X POST "https://patreon.zeabur.app/api/agents/${agent.id}/a2a-key" \\
+  -H "Authorization: Bearer YOUR_SESSION"
+
+# Your agent calls this agent
+curl -X POST "${agent.apiEndpoint || `https://api.agentforge.dev/v1/agents/${agent.id}/invoke`}" \\
+  -H "Authorization: Bearer af_a_YOUR_AGENT_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"input": "data from your agent"}'`}
+              label="A2A Integration"
             />
 
             <div className="text-[11px] text-muted-foreground">
-              Replace <code className="px-1 py-0.5 rounded bg-muted font-mono">YOUR_API_KEY</code> with
-              your API key from the agent provider.
+              <p>
+                A2A keys use the <code className="bg-muted px-1 rounded font-mono">af_a_</code> prefix
+                to distinguish them from user keys (<code className="bg-muted px-1 rounded font-mono">af_k_</code>).
+                Usage is billed to the agent owner's account.
+              </p>
             </div>
           </div>
         )}

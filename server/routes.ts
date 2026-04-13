@@ -2300,5 +2300,290 @@ export async function registerRoutes(
     res.json(CONTENT_SOURCES.filter(s => s.active));
   });
 
+  // ─── Tier 2: Per-Agent API Key Generation ──────────────────
+
+  app.post("/api/agents/:id/keys", requireAuth, async (req, res) => {
+    try {
+      const agentId = asSingleParam(req.params.id);
+      const userId = req.session.userId!;
+      const agent = await storage.getAgent(agentId);
+      if (!agent) return res.status(404).json({ message: "Agent not found" });
+
+      // Verify user has active subscription
+      const subs = await storage.getSubscriptions(userId);
+      const activeSub = subs.find(s => s.agentId === agentId && s.status === "active");
+      if (!activeSub) return res.status(403).json({ message: "You must install this agent first" });
+
+      // Generate scoped API key
+      const crypto = await import("crypto");
+      const rawKey = `af_k_${crypto.randomBytes(24).toString("hex")}`;
+      const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
+      const keyPrefix = rawKey.slice(0, 12);
+
+      const apiKey = await storage.createApiKey({
+        userId,
+        name: req.body.name || `${agent.name} API Key`,
+        keyHash,
+        keyPrefix,
+        agentId,
+      });
+
+      res.status(201).json({ ...apiKey, key: rawKey });
+    } catch (error: any) {
+      console.error("Create agent API key error:", error);
+      res.status(500).json({ message: "Failed to create API key" });
+    }
+  });
+
+  app.get("/api/agents/:id/keys", requireAuth, async (req, res) => {
+    try {
+      const agentId = asSingleParam(req.params.id);
+      const userId = req.session.userId!;
+      const allKeys = await storage.getApiKeysByUser(userId);
+      const agentKeys = allKeys.filter(k => k.agentId === agentId && !k.revoked);
+      res.json(agentKeys);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch keys" });
+    }
+  });
+
+  // ─── Tier 2: Connectivity Test ─────────────────────────────
+
+  app.post("/api/agents/:id/test-connect", requireAuth, async (req, res) => {
+    try {
+      const agent = await storage.getAgent(asSingleParam(req.params.id));
+      if (!agent) return res.status(404).json({ message: "Agent not found" });
+      if (!agent.apiEndpoint) return res.json({ reachable: false, error: "No API endpoint configured" });
+
+      const start = Date.now();
+      let reachable = false;
+      let statusCode: number | undefined;
+      let error: string | undefined;
+
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const response = await fetch(agent.apiEndpoint, {
+          method: "HEAD",
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        statusCode = response.status;
+        reachable = response.status < 500;
+      } catch (err: any) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 8000);
+          const response = await fetch(agent.apiEndpoint, {
+            method: "GET",
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          statusCode = response.status;
+          reachable = response.status < 500;
+        } catch (fallbackErr: any) {
+          error = fallbackErr.message || "Unreachable";
+        }
+      }
+
+      const latencyMs = Date.now() - start;
+      res.json({ reachable, latencyMs, statusCode, error, endpoint: agent.apiEndpoint });
+    } catch (error: any) {
+      res.status(500).json({ message: "Connection test failed" });
+    }
+  });
+
+  // ─── Tier 2: Usage Tracking ────────────────────────────────
+
+  app.get("/api/agents/:id/usage", requireAuth, async (req, res) => {
+    try {
+      const agentId = asSingleParam(req.params.id);
+      const userId = req.session.userId!;
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // last 30 days
+      const logs = await storage.getApiUsageLogs(userId);
+      const agentLogs = logs.filter(l => l.agentId === agentId && new Date(l.createdAt) >= since);
+
+      // Daily breakdown
+      const daily: Record<string, number> = {};
+      agentLogs.forEach(l => {
+        const day = new Date(l.createdAt).toISOString().slice(0, 10);
+        daily[day] = (daily[day] || 0) + 1;
+      });
+
+      res.json({
+        total: agentLogs.length,
+        period: "30d",
+        daily: Object.entries(daily).map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date)),
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch usage" });
+    }
+  });
+
+  // ─── Tier 3: Deploy Config Generation ──────────────────────
+
+  app.get("/api/agents/:id/deploy-config", requireAuth, async (req, res) => {
+    try {
+      const agent = await storage.getAgent(asSingleParam(req.params.id));
+      if (!agent) return res.status(404).json({ message: "Agent not found" });
+
+      const format = asSingleParam(req.query.format as string) || "docker-compose";
+      const name = agent.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
+      const image = (agent as any).dockerImage || `agentforge/${name}:latest`;
+
+      let config = "";
+
+      if (format === "docker-compose") {
+        config = `version: "3.8"
+services:
+  ${name}:
+    image: ${image}
+    container_name: ${name}
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - AGENT_NAME=${agent.name}
+      - AGENT_ID=${agent.id}
+      - AGENTFORGE_API_KEY=\${AGENTFORGE_API_KEY}
+${agent.apiEndpoint ? `      - UPSTREAM_URL=${agent.apiEndpoint}` : ""}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+`;
+      } else if (format === "dockerfile") {
+        config = `FROM ${image}
+
+ENV AGENT_NAME="${agent.name}"
+ENV AGENT_ID="${agent.id}"
+${agent.apiEndpoint ? `ENV UPSTREAM_URL="${agent.apiEndpoint}"` : ""}
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \\
+  CMD curl -f http://localhost:8080/health || exit 1
+
+CMD ["node", "server.js"]
+`;
+      } else if (format === "fly-toml") {
+        config = `app = "${name}"
+primary_region = "hkg"
+
+[build]
+  image = "${image}"
+
+[env]
+  AGENT_NAME = "${agent.name}"
+  AGENT_ID = "${agent.id}"
+${agent.apiEndpoint ? `  UPSTREAM_URL = "${agent.apiEndpoint}"` : ""}
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
+`;
+      } else {
+        return res.status(400).json({ message: "Unsupported format. Use: docker-compose, dockerfile, fly-toml" });
+      }
+
+      res.json({ format, config, agentName: agent.name });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to generate deploy config" });
+    }
+  });
+
+  // ─── Tier 3: Agent-to-Agent (A2A) Subscriptions ────────────
+
+  app.post("/api/agents/:id/subscribe-agent", requireAuth, async (req, res) => {
+    try {
+      const targetAgentId = asSingleParam(req.params.id);
+      const { sourceAgentId } = req.body;
+      const userId = req.session.userId!;
+
+      if (!sourceAgentId) return res.status(400).json({ message: "sourceAgentId is required" });
+
+      // Verify user owns the source agent (via creator)
+      const creator = await storage.getCreatorByUserId(userId);
+      if (!creator) return res.status(403).json({ message: "You must be a creator to subscribe agents" });
+
+      const targetAgent = await storage.getAgent(targetAgentId);
+      if (!targetAgent) return res.status(404).json({ message: "Target agent not found" });
+
+      // Check if already subscribed
+      const existingSubs = await storage.getSubscriptions(sourceAgentId);
+      const existing = existingSubs.find(s => s.agentId === targetAgentId && s.status === "active");
+      if (existing) return res.status(409).json({ message: "Agent already subscribed" });
+
+      // Create A2A subscription
+      const sub = await storage.createSubscription({
+        subscriberId: sourceAgentId,
+        subscriberType: "agent",
+        agentId: targetAgentId,
+        plan: targetAgent.pricing === "free" ? "free" : "pro",
+        status: "active",
+      });
+
+      res.status(201).json(sub);
+    } catch (error: any) {
+      console.error("A2A subscribe error:", error);
+      res.status(500).json({ message: "Failed to create agent subscription" });
+    }
+  });
+
+  app.post("/api/agents/:id/a2a-key", requireAuth, async (req, res) => {
+    try {
+      const agentId = asSingleParam(req.params.id);
+      const userId = req.session.userId!;
+
+      // Verify user owns this agent
+      const creator = await storage.getCreatorByUserId(userId);
+      if (!creator) return res.status(403).json({ message: "You must be a creator" });
+
+      const crypto = await import("crypto");
+      const rawKey = `af_a_${crypto.randomBytes(24).toString("hex")}`;
+      const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
+      const keyPrefix = rawKey.slice(0, 12);
+
+      // Store in agentApiKeys (use apiKeys table with agent scope for simplicity)
+      const apiKey = await storage.createApiKey({
+        userId,
+        name: `A2A Key for Agent ${agentId}`,
+        keyHash,
+        keyPrefix,
+        agentId,
+      });
+
+      res.status(201).json({ ...apiKey, key: rawKey });
+    } catch (error: any) {
+      console.error("A2A key generation error:", error);
+      res.status(500).json({ message: "Failed to generate agent key" });
+    }
+  });
+
+  app.get("/api/agents/:id/a2a-subscriptions", requireAuth, async (req, res) => {
+    try {
+      const agentId = asSingleParam(req.params.id);
+      // Get subscriptions where this agent is the subscriber
+      const allSubs = await storage.getSubscriptions(agentId);
+      const activeSubs = allSubs.filter(s => s.status === "active");
+      const enriched = await Promise.all(activeSubs.map(async (sub) => {
+        const agent = await storage.getAgent(sub.agentId);
+        return { ...sub, agent: agent || null };
+      }));
+      res.json(enriched);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch A2A subscriptions" });
+    }
+  });
+
   return httpServer;
 }
