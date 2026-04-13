@@ -2103,6 +2103,36 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Daily Auto-Import Scheduler ─────────────────────────────
+  // Runs every 24 hours to pull latest agents from GitHub Trending & HuggingFace
+  const IMPORT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  async function runDailyImport() {
+    console.log("[Scheduler] Starting daily auto-import...");
+    try {
+      const [github, huggingface] = await Promise.all([
+        importFromGitHub().catch(err => {
+          console.error("[Scheduler] GitHub import failed:", err.message);
+          return { imported: 0, skipped: 0, errors: 1, agents: [] as string[] };
+        }),
+        importFromHuggingFace().catch(err => {
+          console.error("[Scheduler] HuggingFace import failed:", err.message);
+          return { imported: 0, skipped: 0, errors: 1, agents: [] as string[] };
+        }),
+      ]);
+      console.log(`[Scheduler] Daily import done: GitHub(${github.imported} new, ${github.skipped} skipped), HF(${huggingface.imported} new, ${huggingface.skipped} skipped)`);
+    } catch (err: any) {
+      console.error("[Scheduler] Daily import failed:", err.message);
+    }
+  }
+
+  // Run first import 30 seconds after startup, then every 24 hours
+  setTimeout(() => {
+    runDailyImport();
+    setInterval(runDailyImport, IMPORT_INTERVAL_MS);
+  }, 30 * 1000);
+  console.log("[Scheduler] Daily auto-import scheduled (every 24h, first run in 30s)");
+
   // ─── HF Inference Proxy ──────────────────────────────────────
 
   app.post("/api/agents/:id/invoke", requireApiKeyOrSession, async (req, res) => {
