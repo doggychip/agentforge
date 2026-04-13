@@ -40,7 +40,7 @@ import {
   Pencil, Trash2, ExternalLink, PenSquare, Loader2,
   X, Rocket, CreditCard, TrendingUp, TrendingDown,
   MessageSquare, ArrowUpDown, ChevronDown, ChevronUp,
-  Wrench, FileText, Globe, BarChart3, Trophy, Rss, Github, Rss, Github,
+  Wrench, FileText, Globe, BarChart3, Trophy, Rss, Github,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,

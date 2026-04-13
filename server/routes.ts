@@ -92,6 +92,11 @@ function getAuthUserId(req: Request): string | undefined {
   return req.session.userId || (req as any).apiKeyUserId;
 }
 
+function asSingleParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -721,7 +726,8 @@ export async function registerRoutes(
       const creator = await storage.getCreatorByUserId(req.session.userId!);
       if (!creator) return res.status(403).json({ message: "You need a creator profile first" });
 
-      const agent = await storage.getAgent(req.params.id);
+      const agentId = asSingleParam(req.params.id);
+      const agent = await storage.getAgent(agentId);
       if (!agent) return res.status(404).json({ message: "Agent not found" });
       if (agent.creatorId !== creator.id) return res.status(403).json({ message: "Not your agent" });
 
@@ -733,7 +739,7 @@ export async function registerRoutes(
         }
       }
 
-      const updated = await storage.updateAgent(req.params.id, updateData);
+      const updated = await storage.updateAgent(agentId, updateData);
       if (!updated) return res.status(404).json({ message: "Agent not found" });
       res.json(updated);
     } catch (error) {
@@ -748,11 +754,12 @@ export async function registerRoutes(
       const creator = await storage.getCreatorByUserId(req.session.userId!);
       if (!creator) return res.status(403).json({ message: "You need a creator profile first" });
 
-      const agent = await storage.getAgent(req.params.id);
+      const agentId = asSingleParam(req.params.id);
+      const agent = await storage.getAgent(agentId);
       if (!agent) return res.status(404).json({ message: "Agent not found" });
       if (agent.creatorId !== creator.id) return res.status(403).json({ message: "Not your agent" });
 
-      await storage.deleteAgent(req.params.id);
+      await storage.deleteAgent(agentId);
       await storage.updateCreator(creator.id, { agentCount: Math.max(0, creator.agentCount - 1) });
       res.json({ success: true });
     } catch (error) {
@@ -807,12 +814,12 @@ export async function registerRoutes(
         : null;
 
       // Simulated 7-day trend data based on real totals
-      function simulateTrend(total: number): number[] {
+      const simulateTrend = (total: number): number[] => {
         const dailyAvg = Math.max(1, Math.round(total / 30));
         return Array.from({ length: 7 }, () =>
           Math.max(0, Math.round(dailyAvg * (0.8 + Math.random() * 0.4)))
         );
-      }
+      };
 
       res.json({
         subscribers: creator.subscribers,
@@ -917,8 +924,9 @@ export async function registerRoutes(
   // ─── Creator Subscriptions (follow/unfollow) ─────────────────
 
   app.post("/api/creators/:id/subscribe", requireAuth, async (req, res) => {
-    const subscribed = await storage.subscribeToCreator(req.session.userId!, req.params.id);
-    const creator = await storage.getCreator(req.params.id);
+    const creatorId = asSingleParam(req.params.id);
+    const subscribed = await storage.subscribeToCreator(req.session.userId!, creatorId);
+    const creator = await storage.getCreator(creatorId);
     // Generate notification for creator on new subscriber
     if (subscribed && creator?.userId && creator.userId !== req.session.userId) {
       const user = await storage.getUser(req.session.userId!);
@@ -934,7 +942,8 @@ export async function registerRoutes(
   });
 
   app.get("/api/creators/:id/is-subscribed", requireAuth, async (req, res) => {
-    const subscribed = await storage.isSubscribedToCreator(req.session.userId!, req.params.id);
+    const creatorId = asSingleParam(req.params.id);
+    const subscribed = await storage.isSubscribedToCreator(req.session.userId!, creatorId);
     res.json({ subscribed });
   });
 
@@ -959,14 +968,14 @@ export async function registerRoutes(
     const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(401).json({ message: "Not authenticated" });
     const review = await storage.createReview({
-      agentId: req.params.id,
+      agentId: asSingleParam(req.params.id),
       userId: req.session.userId!,
       authorName: user.displayName,
       rating: req.body.rating,
       body: req.body.body,
     });
     // Notify the agent's creator about the review
-    const agent = await storage.getAgent(req.params.id);
+    const agent = await storage.getAgent(asSingleParam(req.params.id));
     if (agent) {
       const creator = await storage.getCreator(agent.creatorId);
       if (creator?.userId && creator.userId !== req.session.userId) {
@@ -1093,8 +1102,9 @@ export async function registerRoutes(
   });
 
   app.post("/api/posts/:id/like", requireAuth, async (req, res) => {
-    const liked = await storage.likePost(req.params.id, req.session.userId!);
-    const post = await storage.getPost(req.params.id);
+    const postId = asSingleParam(req.params.id);
+    const liked = await storage.likePost(postId, req.session.userId!);
+    const post = await storage.getPost(postId);
     // Generate notification for the post creator on like
     if (liked && post) {
       const user = await storage.getUser(req.session.userId!);
@@ -1122,7 +1132,8 @@ export async function registerRoutes(
     if (!user) return res.status(401).json({ message: "Not authenticated" });
 
     // Block comments on subscriber-only posts for non-subscribers
-    const targetPost = await storage.getPost(req.params.id);
+    const postId = asSingleParam(req.params.id);
+    const targetPost = await storage.getPost(postId);
     if (targetPost && targetPost.visibility === "subscribers") {
       const userCreator = await storage.getCreatorByUserId(req.session.userId!);
       const isPostCreator = userCreator?.id === targetPost.creatorId;
@@ -1133,13 +1144,13 @@ export async function registerRoutes(
     }
 
     const comment = await storage.createComment({
-      postId: req.params.id,
+      postId,
       userId: req.session.userId!,
       authorName: user.displayName,
       body: req.body.body,
     });
     // Generate notification for the post creator on comment
-    const post = await storage.getPost(req.params.id);
+    const post = await storage.getPost(postId);
     if (post) {
       const creator = await storage.getCreator(post.creatorId);
       if (creator?.userId && creator.userId !== req.session.userId) {
@@ -1451,7 +1462,7 @@ export async function registerRoutes(
           if (dbSub) {
             await storage.updateSubscription(dbSub.id, {
               status: sub.status === "active" ? "active" : "cancelled",
-              currentPeriodEnd: new Date(sub.current_period_end * 1000),
+              currentPeriodEnd: new Date(((sub as any).current_period_end as number) * 1000),
             });
           }
           break;
@@ -1619,7 +1630,7 @@ export async function registerRoutes(
   // Single agent health check
   app.get("/api/agents/:id/health", async (req, res) => {
     try {
-      const agent = await storage.getAgent(req.params.id);
+      const agent = await storage.getAgent(asSingleParam(req.params.id));
       if (!agent) return res.status(404).json({ message: "Agent not found" });
       if (!agent.apiEndpoint) {
         return res.json({ id: agent.id, name: agent.name, healthy: null, message: "No API endpoint configured" });
@@ -1971,7 +1982,7 @@ export async function registerRoutes(
 
   app.post("/api/agents/:id/invoke", requireApiKeyOrSession, async (req, res) => {
     try {
-      const agent = await storage.getAgent(req.params.id);
+      const agent = await storage.getAgent(asSingleParam(req.params.id));
       if (!agent) return res.status(404).json({ message: "Agent not found" });
 
       // Check subscription auth
@@ -2150,7 +2161,7 @@ export async function registerRoutes(
   });
 
   app.delete("/api/keys/:id", requireAuth, async (req, res) => {
-    const revoked = await storage.revokeApiKey(req.params.id, req.session.userId!);
+    const revoked = await storage.revokeApiKey(asSingleParam(req.params.id), req.session.userId!);
     if (!revoked) return res.status(404).json({ message: "Key not found" });
     res.json({ success: true });
   });
