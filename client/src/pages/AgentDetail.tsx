@@ -13,9 +13,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Star, Download, Bot, Wrench, FileText, Globe, ArrowLeft, Share2, X as XIcon,
   Shield, Copy, Code, Cpu, MessageSquare, CheckCircle, Terminal, Play, Box,
-  Loader2,
+  Loader2, Settings,
 } from "lucide-react";
 import { AgentAvatar } from "@/components/AgentAvatar";
+import { InstallModal } from "@/components/InstallModal";
 
 const categoryIcons: Record<string, React.ReactNode> = {
   agent: <Bot size={18} />,
@@ -154,6 +155,7 @@ export default function AgentDetail() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewBody, setReviewBody] = useState("");
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
 
   // Parse checkout status from hash URL: /#/agents/a1?checkout=success
   const checkoutStatus = useMemo(() => {
@@ -220,7 +222,7 @@ export default function AgentDetail() {
     },
     onSuccess: () => {
       if (agentData?.pricing === "free" || !agentData?.price) {
-        toast({ title: "Installed", description: `You've installed ${agentData?.name}` });
+        setShowInstallModal(true);
       } else {
         toast({ title: "Checkout opened", description: "Complete payment in the new tab" });
       }
@@ -385,10 +387,20 @@ export default function AgentDetail() {
 
             {/* Installed state for free agents */}
             {(subStatus?.subscribed || subscribeMutation.isSuccess || checkoutStatus === "success") && agent.pricing === "free" ? (
-              <div className="flex items-center justify-center gap-2 h-9 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm font-medium" data-testid="badge-installed">
-                <CheckCircle size={15} />
-                Installed
-              </div>
+              <>
+                <div className="flex items-center justify-center gap-2 h-9 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm font-medium" data-testid="badge-installed">
+                  <CheckCircle size={15} />
+                  Installed
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full h-8 text-xs gap-1.5"
+                  onClick={() => setShowInstallModal(true)}
+                  data-testid="button-setup"
+                >
+                  <Settings size={12} /> Setup Instructions
+                </Button>
+              </>
             ) : (
               <Button
                 variant="outline"
@@ -617,6 +629,15 @@ curl -X POST ${agent.apiEndpoint || `https://api.agentforge.dev/v1/agents/${agen
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Install Modal */}
+      {agent && (
+        <InstallModal
+          agent={agent}
+          open={showInstallModal}
+          onClose={() => setShowInstallModal(false)}
+        />
+      )}
     </div>
   );
 }
