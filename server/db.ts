@@ -104,6 +104,30 @@ export async function migrateIfNeeded() {
     `);
     console.log("[db] API usage logs table ensured");
 
+    // Tier 2+3: scoped API keys, usage tracking, deploy, A2A
+    try {
+      await client.query(`
+        ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "agent_id" varchar;
+        ALTER TABLE "api_usage_logs" ADD COLUMN IF NOT EXISTS "agent_id" varchar;
+        ALTER TABLE "agents" ADD COLUMN IF NOT EXISTS "docker_image" text;
+      `);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS "agent_api_keys" (
+          "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+          "agent_id" varchar NOT NULL,
+          "owner_id" varchar NOT NULL,
+          "name" text NOT NULL,
+          "key_hash" text NOT NULL,
+          "key_prefix" text NOT NULL,
+          "created_at" timestamp NOT NULL DEFAULT now(),
+          "revoked" boolean NOT NULL DEFAULT false
+        );
+      `);
+      console.log("[db] Tier 2+3 columns ensured (agent scoped keys, deploy, A2A)");
+    } catch {
+      console.log("[db] Tier 2+3 columns skipped (tables may not exist yet)");
+    }
+
     // Ensure conversations & messages tables exist (playground feature)
     await client.query(`
       CREATE TABLE IF NOT EXISTS "conversations" (
