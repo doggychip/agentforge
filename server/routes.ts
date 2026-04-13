@@ -165,8 +165,9 @@ export async function registerRoutes(
   process.env.CLERK_PUBLISHABLE_KEY = process.env.CLERK_PUBLISHABLE_KEY || "pk_test_Zmx5aW5nLXNsb3RoLTMuY2xlcmsuYWNjb3VudHMuZGV2JA";
   if (clerkMiddleware) {
     try {
-      app.use(clerkMiddleware());
-      console.log("[clerk] Middleware initialized");
+      // Only apply Clerk to API routes — static files don't need auth
+      app.use("/api", clerkMiddleware());
+      console.log("[clerk] Middleware initialized (API routes only)");
     } catch (err: any) {
       console.error("[clerk] Failed to initialize:", err.message);
     }

@@ -13,11 +13,10 @@ export function serveStatic(app: Express) {
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist (SPA routing)
-  // Skip API routes to avoid "headers already sent" errors
-  app.use("/{*path}", (_req, res) => {
-    if (_req.path.startsWith("/api")) return;
-    if (!res.headersSent) {
-      res.sendFile(path.resolve(distPath, "index.html"));
-    }
+  app.use("/{*path}", (_req, res, next) => {
+    if (_req.path.startsWith("/api") || res.headersSent) return next();
+    res.sendFile(path.resolve(distPath, "index.html"), (err) => {
+      if (err && !res.headersSent) next(err);
+    });
   });
 }
