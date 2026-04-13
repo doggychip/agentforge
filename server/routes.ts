@@ -2384,7 +2384,7 @@ export async function registerRoutes(
             const data = await hfRes.json();
             assistantContent = data.choices?.[0]?.message?.content || "No response from model.";
           } else {
-            assistantContent = "Sorry, I encountered an error processing your request.";
+            assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nThe inference service is temporarily unavailable. This is a demo response. Please try again later.`;
           }
         }
       } else if (agent.backendType === "self-hosted" && agent.apiEndpoint) {
@@ -2393,16 +2393,22 @@ export async function registerRoutes(
         if (["localhost", "127.0.0.1", "0.0.0.0"].includes(targetUrl.hostname)) {
           assistantContent = "This agent's endpoint is not accessible.";
         } else {
-          const proxyRes = await fetch(agent.apiEndpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: chatHistory }),
-          });
-          if (proxyRes.ok) {
-            const data = await proxyRes.json();
-            assistantContent = data.choices?.[0]?.message?.content || data.response || data.content || JSON.stringify(data);
-          } else {
-            assistantContent = "Sorry, I encountered an error processing your request.";
+          try {
+            const proxyRes = await fetch(agent.apiEndpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ messages: chatHistory }),
+            });
+            if (proxyRes.ok) {
+              const data = await proxyRes.json();
+              assistantContent = data.choices?.[0]?.message?.content || data.response || data.content || JSON.stringify(data);
+            } else {
+              // Backend unavailable — fall back to demo response
+              assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nThis is a demo conversation. The agent's inference backend is currently unavailable, but you can explore the agent's documentation and capabilities here.\n\nTags: ${(agent.tags as string[] || []).join(", ")}`;
+            }
+          } catch {
+            // Network error reaching backend — fall back to demo response
+            assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nThis is a demo conversation. The agent's inference backend is currently unreachable, but you can explore the agent's documentation and capabilities here.\n\nTags: ${(agent.tags as string[] || []).join(", ")}`;
           }
         }
       } else {
@@ -2411,7 +2417,7 @@ export async function registerRoutes(
       }
     } catch (err: any) {
       console.error("Playground invoke error:", err);
-      assistantContent = "Sorry, something went wrong. Please try again.";
+      assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nSomething went wrong reaching the backend. This is a demo response instead.`;
     }
 
     const assistantMsg = await storage.createMessage({ conversationId: conv.id, role: "assistant", content: assistantContent });
