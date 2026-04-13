@@ -157,8 +157,14 @@ export async function registerRoutes(
   // ─── Clerk Auth Middleware ──────────────────────────────────
   // Attaches Clerk auth state to requests (non-blocking — doesn't reject unauthenticated requests)
   const CLERK_SECRET = process.env.CLERK_SECRET_KEY || "sk_test_4VAbVCj1eXgUvy2ov4CvBmaAryCDmmF8qSdFVomwhU";
-  if (CLERK_SECRET) {
+  const CLERK_PK = process.env.CLERK_PUBLISHABLE_KEY || "pk_test_Zmx5aW5nLXNsb3RoLTMuY2xlcmsuYWNjb3VudHMuZGV2JA";
+  process.env.CLERK_SECRET_KEY = CLERK_SECRET;
+  process.env.CLERK_PUBLISHABLE_KEY = CLERK_PK;
+  try {
     app.use(clerkMiddleware());
+    console.log("[clerk] Middleware initialized");
+  } catch (err: any) {
+    console.error("[clerk] Failed to initialize:", err.message);
   }
 
   // ─── Global API Key Tracking Middleware ───────────────────────
