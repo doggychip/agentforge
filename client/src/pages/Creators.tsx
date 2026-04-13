@@ -11,8 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Shield, Bot, Users, Search, ArrowUpDown, X as XIcon } from "lucide-react";
-import { useState, useMemo } from "react";
+import { Shield, Bot, Users, Search, ArrowUpDown, X as XIcon, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
 
 function formatNumber(n: number) {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
@@ -30,6 +30,9 @@ export default function Creators() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("popular");
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [tagsExpanded, setTagsExpanded] = useState(false);
+  const [visibleTagCount, setVisibleTagCount] = useState<number | null>(null);
+  const tagsContainerRef = useRef<HTMLDivElement>(null);
 
   const { data: creators, isLoading } = useQuery<Creator[]>({
     queryKey: ["/api/creators"],
@@ -41,6 +44,50 @@ export default function Creators() {
     creators.forEach((c) => c.tags.forEach((t) => tagSet.add(t)));
     return Array.from(tagSet).sort();
   }, [creators]);
+
+  // Calculate how many tags fit in a single row
+  useEffect(() => {
+    const container = tagsContainerRef.current;
+    if (!container || allTags.length === 0) return;
+
+    const measure = () => {
+      const children = Array.from(container.children) as HTMLElement[];
+      if (children.length < 2) return; // Need at least the "All" button + 1 tag
+
+      const firstTop = children[0].offsetTop;
+      let count = 0;
+      // Skip index 0 ("All" button), count tag buttons that are on the first row
+      for (let i = 1; i < children.length; i++) {
+        if (children[i].offsetTop === firstTop) {
+          count++;
+        } else {
+          break;
+        }
+      }
+      // Only collapse if there are tags that overflow beyond the first row
+      if (count < allTags.length) {
+        setVisibleTagCount(count);
+      } else {
+        setVisibleTagCount(null); // All fit in one row, no need to collapse
+      }
+    };
+
+    // Measure after render
+    requestAnimationFrame(measure);
+
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(measure);
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [allTags]);
+
+  const displayedTags = useMemo(() => {
+    if (tagsExpanded || visibleTagCount === null) return allTags;
+    return allTags.slice(0, visibleTagCount);
+  }, [allTags, tagsExpanded, visibleTagCount]);
+
+  const hiddenTagCount = visibleTagCount !== null ? allTags.length - visibleTagCount : 0;
 
   const filtered = useMemo(() => {
     let result = creators ?? [];
@@ -80,7 +127,7 @@ export default function Creators() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 relative">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-lg font-bold text-foreground">Creators</h1>
@@ -117,6 +164,23 @@ export default function Creators() {
         </div>
       </div>
 
+      {/* Hidden measurement container – renders all tags to calculate row overflow */}
+      <div
+        ref={tagsContainerRef}
+        className="flex items-center gap-2 flex-wrap pointer-events-none"
+        aria-hidden="true"
+        style={{ position: "absolute", visibility: "hidden", left: 0, right: 0 }}
+      >
+        <Button variant="default" size="sm" className="h-7 text-xs" tabIndex={-1}>
+          All
+        </Button>
+        {allTags.map((tag) => (
+          <Button key={tag} variant="outline" size="sm" className="h-7 text-xs" tabIndex={-1}>
+            {tag}
+          </Button>
+        ))}
+      </div>
+
       {/* Tag filters */}
       <div className="flex items-center gap-2 flex-wrap mb-6" data-testid="filter-tags-creators">
         <Button
@@ -128,7 +192,7 @@ export default function Creators() {
         >
           All
         </Button>
-        {allTags.map((tag) => (
+        {displayedTags.map((tag) => (
           <Button
             key={tag}
             variant={activeTag === tag ? "default" : "outline"}
@@ -140,6 +204,30 @@ export default function Creators() {
             {tag}
           </Button>
         ))}
+        {!tagsExpanded && hiddenTagCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
+            onClick={() => setTagsExpanded(true)}
+            data-testid="button-show-more-tags"
+          >
+            <ChevronDown size={12} />
+            +{hiddenTagCount} more
+          </Button>
+        )}
+        {tagsExpanded && visibleTagCount !== null && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
+            onClick={() => setTagsExpanded(false)}
+            data-testid="button-show-less-tags"
+          >
+            <ChevronUp size={12} />
+            Show less
+          </Button>
+        )}
         {activeFilterCount > 0 && (
           <Button
             variant="ghost"
