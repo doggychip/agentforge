@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { SignInButton } from "@clerk/clerk-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +55,6 @@ export default function BecomeCreator() {
 
       if (err.message?.startsWith("401")) {
         queryClient.setQueryData(["/api/auth/me"], null);
-        navigate("/auth");
         toast({ title: "Session expired. Please sign in again." });
         return;
       }
@@ -74,9 +74,9 @@ export default function BecomeCreator() {
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
         <p className="text-sm text-muted-foreground mb-4">Sign in first to become a creator.</p>
-        <Link href="/auth" className="no-underline">
+        <SignInButton mode="modal">
           <Button size="sm">Sign in</Button>
-        </Link>
+        </SignInButton>
       </div>
     );
   }

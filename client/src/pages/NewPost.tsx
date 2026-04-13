@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { SignInButton } from "@clerk/clerk-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Creator } from "@shared/schema";
 import { Button } from "@/components/ui/button";
@@ -96,9 +97,9 @@ export default function NewPost() {
         <p className="text-sm text-muted-foreground mb-4">
           You need an account to publish posts on AgentForge.
         </p>
-        <Link href="/auth" className="no-underline">
+        <SignInButton mode="modal">
           <Button size="sm">Sign in</Button>
-        </Link>
+        </SignInButton>
       </div>
     );
   }

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
+import { SignInButton } from "@clerk/clerk-react";
 import { apiRequest } from "@/lib/queryClient";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import {
@@ -215,12 +216,12 @@ export default function Playground() {
             <span className="font-medium">You've used your 3 free messages.</span>{" "}
             Sign up to keep chatting and save your conversations.
           </p>
-          <Link href="/auth">
+          <SignInButton mode="modal">
             <Button size="sm" className="shrink-0 gap-1.5">
               <LogIn size={14} />
               Sign up free
             </Button>
-          </Link>
+          </SignInButton>
         </div>
       )}
 

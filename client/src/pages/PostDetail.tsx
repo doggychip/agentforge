@@ -3,6 +3,7 @@ import { useParams } from "wouter";
 import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { SignInButton } from "@clerk/clerk-react";
 import type { Post, Creator, Comment } from "@shared/schema";
 import { Heart, MessageCircle, Clock, ArrowLeft, Send, Loader2, Lock, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -343,9 +344,9 @@ export default function PostDetail() {
             ) : (
               <div className="text-center py-4 mb-6 border border-dashed border-border rounded-lg">
                 <p className="text-sm text-muted-foreground mb-2">Sign in to join the discussion</p>
-                <Link href="/auth" className="no-underline">
+                <SignInButton mode="modal">
                   <Button size="sm" variant="outline" className="h-7 text-xs">Sign in</Button>
-                </Link>
+                </SignInButton>
               </div>
             )}
 

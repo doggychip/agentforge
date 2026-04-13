@@ -5,8 +5,6 @@ import type { SafeUser } from "@shared/schema";
 type AuthContextType = {
   user: SafeUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<SafeUser>;
-  register: (data: { username: string; email: string; password: string; displayName: string }) => Promise<SafeUser>;
   logout: () => Promise<void>;
 };
 
@@ -33,22 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     : null;
 
-  const login = async () => {
-    // Clerk handles login via its own UI components
-    throw new Error("Use Clerk SignIn component instead");
-  };
-
-  const register = async () => {
-    // Clerk handles registration via its own UI components
-    throw new Error("Use Clerk SignUp component instead");
-  };
-
   const logout = async () => {
     await signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading: !isLoaded, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading: !isLoaded, logout }}>
       {children}
     </AuthContext.Provider>
   );
