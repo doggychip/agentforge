@@ -8,7 +8,8 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ClerkProvider } from "@clerk/clerk-react";
 
-const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "pk_test_Zmx5aW5nLXNsb3RoLTMuY2xlcmsuYWNjb3VudHMuZGV2JA";
+// Clerk publishable key — safe to hardcode (it's a public key)
+const CLERK_PUBLISHABLE_KEY = "pk_test_Zmx5aW5nLXNsb3RoLTMuY2xlcmsuYWNjb3VudHMuZGV2JA";
 import { Layout } from "@/components/Layout";
 import Home from "@/pages/Home";
 import Agents from "@/pages/Agents";
