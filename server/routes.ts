@@ -10,7 +10,18 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { generateSecret as otpGenerateSecret, generateURI as otpGenerateURI, verifySync as otpVerifySync } from "otplib";
 import QRCode from "qrcode";
-import { clerkClient, clerkMiddleware, getAuth } from "@clerk/express";
+// Clerk — imported dynamically to avoid crashing if misconfigured
+let clerkMiddleware: any = null;
+let getAuth: any = null;
+let clerkClient: any = null;
+try {
+  const clerk = require("@clerk/express");
+  clerkMiddleware = clerk.clerkMiddleware;
+  getAuth = clerk.getAuth;
+  clerkClient = clerk.clerkClient;
+} catch (err: any) {
+  console.warn("[clerk] @clerk/express not available:", err.message);
+}
 import { storage } from "./storage";
 import { CONTENT_SOURCES } from "./content-sources";
 import { registerSchema, loginSchema, insertAgentSchema, type SafeUser } from "@shared/schema";
@@ -44,14 +55,15 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (req.session.userId) return next();
 
   // Check Clerk token
-  try {
-    const auth = getAuth(req);
-    if (auth?.userId) {
-      // Sync Clerk userId into session for downstream compatibility
-      req.session.userId = auth.userId;
-      return next();
-    }
-  } catch {}
+  if (getAuth) {
+    try {
+      const auth = getAuth(req);
+      if (auth?.userId) {
+        req.session.userId = auth.userId;
+        return next();
+      }
+    } catch {}
+  }
 
   return res.status(401).json({ message: "Not authenticated" });
 }
@@ -155,16 +167,16 @@ export async function registerRoutes(
   app.use(session(sessionConfig));
 
   // ─── Clerk Auth Middleware ──────────────────────────────────
-  // Attaches Clerk auth state to requests (non-blocking — doesn't reject unauthenticated requests)
-  const CLERK_SECRET = process.env.CLERK_SECRET_KEY || "sk_test_4VAbVCj1eXgUvy2ov4CvBmaAryCDmmF8qSdFVomwhU";
-  const CLERK_PK = process.env.CLERK_PUBLISHABLE_KEY || "pk_test_Zmx5aW5nLXNsb3RoLTMuY2xlcmsuYWNjb3VudHMuZGV2JA";
-  process.env.CLERK_SECRET_KEY = CLERK_SECRET;
-  process.env.CLERK_PUBLISHABLE_KEY = CLERK_PK;
-  try {
-    app.use(clerkMiddleware());
-    console.log("[clerk] Middleware initialized");
-  } catch (err: any) {
-    console.error("[clerk] Failed to initialize:", err.message);
+  // Attaches Clerk auth state to requests (non-blocking)
+  process.env.CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY || "sk_test_4VAbVCj1eXgUvy2ov4CvBmaAryCDmmF8qSdFVomwhU";
+  process.env.CLERK_PUBLISHABLE_KEY = process.env.CLERK_PUBLISHABLE_KEY || "pk_test_Zmx5aW5nLXNsb3RoLTMuY2xlcmsuYWNjb3VudHMuZGV2JA";
+  if (clerkMiddleware) {
+    try {
+      app.use(clerkMiddleware());
+      console.log("[clerk] Middleware initialized");
+    } catch (err: any) {
+      console.error("[clerk] Failed to initialize:", err.message);
+    }
   }
 
   // ─── Global API Key Tracking Middleware ───────────────────────
@@ -687,34 +699,32 @@ export async function registerRoutes(
     }
 
     // Try Clerk
-    try {
-      const auth = getAuth(req);
-      if (auth?.userId) {
-        // Check if we have this Clerk user in our DB
-        let user = await storage.getUser(auth.userId);
-        if (!user) {
-          // Auto-create user from Clerk data
-          try {
-            const clerkUser = await clerkClient.users.getUser(auth.userId);
-            user = await storage.createUser({
-              username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${auth.userId.slice(-6)}`,
-              email: clerkUser.emailAddresses[0]?.emailAddress || "",
-              password: crypto.randomBytes(32).toString("hex"), // placeholder, not used with Clerk
-              displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "User",
-            });
-            // Update with Clerk-specific fields
-            if (clerkUser.imageUrl) {
-              // store avatar if needed
+    if (getAuth) {
+      try {
+        const auth = getAuth(req);
+        if (auth?.userId) {
+          let user = await storage.getUser(auth.userId);
+          if (!user && clerkClient) {
+            try {
+              const clerkUser = await clerkClient.users.getUser(auth.userId);
+              user = await storage.createUser({
+                username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${auth.userId.slice(-6)}`,
+                email: clerkUser.emailAddresses[0]?.emailAddress || "",
+                password: crypto.randomBytes(32).toString("hex"),
+                displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "User",
+              });
+            } catch (createErr: any) {
+              console.error("Failed to auto-create user from Clerk:", createErr.message);
+              return res.status(401).json({ message: "Not authenticated" });
             }
-          } catch (createErr: any) {
-            console.error("Failed to auto-create user from Clerk:", createErr.message);
-            return res.status(401).json({ message: "Not authenticated" });
+          }
+          if (user) {
+            req.session.userId = auth.userId;
+            return res.json(toSafeUser(user));
           }
         }
-        req.session.userId = auth.userId;
-        return res.json(toSafeUser(user));
-      }
-    } catch {}
+      } catch {}
+    }
 
     return res.status(401).json({ message: "Not authenticated" });
   });
