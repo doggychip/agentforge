@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useTheme } from "./ThemeProvider";
 import { PerplexityAttribution } from "./PerplexityAttribution";
 import { useAuth } from "@/hooks/use-auth";
+import { SignInButton, UserButton, useUser } from "@clerk/clerk-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Notification } from "@shared/schema";
@@ -240,69 +241,71 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {!isLoading && (
               <>
                 {user ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 gap-2 px-2" data-testid="button-user-menu">
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">
-                            {getInitials(user.displayName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="hidden sm:inline text-xs font-medium max-w-[100px] truncate">
-                          {user.displayName}
-                        </span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      <div className="px-2 py-1.5">
-                        <p className="text-sm font-medium">{user.displayName}</p>
-                        <p className="text-xs text-muted-foreground">@{user.username}</p>
-                      </div>
-                      <DropdownMenuSeparator />
-                      <Link href="/profile" className="no-underline">
-                        <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-profile">
-                          <UserIcon size={14} />
-                          Profile
-                        </DropdownMenuItem>
-                      </Link>
-                      {creatorProfile && (
-                        <Link href="/dashboard" className="no-underline">
-                          <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-dashboard">
-                            <LayoutDashboard size={14} />
-                            Dashboard
+                  <div className="flex items-center gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 gap-2 px-2" data-testid="button-user-menu">
+                          <Avatar className="h-6 w-6">
+                            {user.avatar ? (
+                              <img src={user.avatar} alt={user.displayName} className="h-6 w-6 rounded-full" />
+                            ) : (
+                              <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">
+                                {getInitials(user.displayName)}
+                              </AvatarFallback>
+                            )}
+                          </Avatar>
+                          <span className="hidden sm:inline text-xs font-medium max-w-[100px] truncate">
+                            {user.displayName}
+                          </span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <div className="px-2 py-1.5">
+                          <p className="text-sm font-medium">{user.displayName}</p>
+                          <p className="text-xs text-muted-foreground">@{user.username}</p>
+                        </div>
+                        <DropdownMenuSeparator />
+                        <Link href="/profile" className="no-underline">
+                          <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-profile">
+                            <UserIcon size={14} />
+                            Profile
                           </DropdownMenuItem>
                         </Link>
-                      )}
-                      <Link href="/new-post" className="no-underline">
-                        <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-write">
-                          <PenSquare size={14} />
-                          Write a post
-                        </DropdownMenuItem>
-                      </Link>
-                      <Link href="/settings/api-keys" className="no-underline">
-                        <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-api-keys">
-                          <Key size={14} />
-                          API Keys
-                        </DropdownMenuItem>
-                      </Link>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="gap-2 text-xs text-destructive focus:text-destructive"
-                        onClick={() => logout()}
-                        data-testid="menu-item-logout"
-                      >
-                        <LogOut size={14} />
-                        Sign out
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        {creatorProfile && (
+                          <Link href="/dashboard" className="no-underline">
+                            <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-dashboard">
+                              <LayoutDashboard size={14} />
+                              Dashboard
+                            </DropdownMenuItem>
+                          </Link>
+                        )}
+                        <Link href="/new-post" className="no-underline">
+                          <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-write">
+                            <PenSquare size={14} />
+                            Write a post
+                          </DropdownMenuItem>
+                        </Link>
+                        <Link href="/settings/api-keys" className="no-underline">
+                          <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-api-keys">
+                            <Key size={14} />
+                            API Keys
+                          </DropdownMenuItem>
+                        </Link>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <UserButton
+                      appearance={{
+                        elements: { avatarBox: "h-7 w-7" },
+                      }}
+                    />
+                  </div>
                 ) : (
-                  <Link href="/auth" className="no-underline">
+                  <SignInButton mode="modal">
                     <Button size="sm" className="h-8 text-xs font-medium gap-1.5" data-testid="button-sign-in">
                       <Zap size={13} />
                       Sign in
                     </Button>
-                  </Link>
+                  </SignInButton>
                 )}
               </>
             )}

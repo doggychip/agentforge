@@ -1,6 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
 import type { SafeUser } from "@shared/schema";
 
 type AuthContextType = {
@@ -14,65 +13,42 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data: user, isLoading } = useQuery<SafeUser | null>({
-    queryKey: ["/api/auth/me"],
-    queryFn: async () => {
-      try {
-        const res = await apiRequest("GET", "/api/auth/me");
-        return await res.json();
-      } catch {
-        return null;
+  const { user: clerkUser, isLoaded } = useUser();
+  const { signOut } = useClerkAuth();
+
+  // Map Clerk user to our SafeUser shape
+  const user: SafeUser | null = clerkUser
+    ? {
+        id: clerkUser.id,
+        username: clerkUser.username || clerkUser.primaryEmailAddress?.emailAddress?.split("@")[0] || "user",
+        email: clerkUser.primaryEmailAddress?.emailAddress || "",
+        displayName: clerkUser.fullName || clerkUser.firstName || "User",
+        avatar: clerkUser.imageUrl || null,
+        role: "user",
+        stripeCustomerId: null,
+        googleId: clerkUser.externalAccounts?.find(a => a.provider === "google")?.providerUserId || null,
+        githubId: clerkUser.externalAccounts?.find(a => a.provider === "github")?.providerUserId || null,
+        emailVerified: clerkUser.primaryEmailAddress?.verification?.status === "verified",
+        totpEnabled: clerkUser.twoFactorEnabled || false,
       }
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: false,
-    refetchOnWindowFocus: true,
-  });
+    : null;
 
-  const loginMutation = useMutation({
-    mutationFn: async ({ email, password }: { email: string; password: string }) => {
-      const res = await apiRequest("POST", "/api/auth/login", { email, password });
-      return (await res.json()) as SafeUser;
-    },
-    onSuccess: (user) => {
-      queryClient.setQueryData(["/api/auth/me"], user);
-    },
-  });
-
-  const registerMutation = useMutation({
-    mutationFn: async (data: { username: string; email: string; password: string; displayName: string }) => {
-      const res = await apiRequest("POST", "/api/auth/register", data);
-      return (await res.json()) as SafeUser;
-    },
-    onSuccess: (user) => {
-      queryClient.setQueryData(["/api/auth/me"], user);
-    },
-  });
-
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/auth/logout");
-    },
-    onSuccess: () => {
-      queryClient.setQueryData(["/api/auth/me"], null);
-      queryClient.invalidateQueries();
-    },
-  });
-
-  const login = async (email: string, password: string) => {
-    return loginMutation.mutateAsync({ email, password });
+  const login = async () => {
+    // Clerk handles login via its own UI components
+    throw new Error("Use Clerk SignIn component instead");
   };
 
-  const register = async (data: { username: string; email: string; password: string; displayName: string }) => {
-    return registerMutation.mutateAsync(data);
+  const register = async () => {
+    // Clerk handles registration via its own UI components
+    throw new Error("Use Clerk SignUp component instead");
   };
 
   const logout = async () => {
-    return logoutMutation.mutateAsync();
+    await signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user: user ?? null, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading: !isLoaded, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
