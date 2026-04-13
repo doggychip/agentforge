@@ -10,18 +10,11 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { generateSecret as otpGenerateSecret, generateURI as otpGenerateURI, verifySync as otpVerifySync } from "otplib";
 import QRCode from "qrcode";
-// Clerk — imported dynamically to avoid crashing if misconfigured
-let clerkMiddleware: any = null;
-let getAuth: any = null;
-let clerkClient: any = null;
-try {
-  const clerk = require("@clerk/express");
-  clerkMiddleware = clerk.clerkMiddleware;
-  getAuth = clerk.getAuth;
-  clerkClient = clerk.clerkClient;
-} catch (err: any) {
-  console.warn("[clerk] @clerk/express not available:", err.message);
-}
+// Clerk
+import { clerkMiddleware as _clerkMiddleware, getAuth as _getAuth, clerkClient as _clerkClient } from "@clerk/express";
+const clerkMiddleware = _clerkMiddleware;
+const getAuth = _getAuth;
+const clerkClient = _clerkClient;
 import { storage } from "./storage";
 import { CONTENT_SOURCES } from "./content-sources";
 import { registerSchema, loginSchema, insertAgentSchema, type SafeUser } from "@shared/schema";
