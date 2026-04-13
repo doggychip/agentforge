@@ -28,7 +28,7 @@ function AgentForgeLogo() {
 }
 
 const navItems = [
-  { href: "/explore", label: "Explore", icon: Compass },
+  { href: "/discover", label: "Discover", icon: Compass },
   { href: "/feed", label: "Feed", icon: Newspaper },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/creators", label: "Creators", icon: Users },
