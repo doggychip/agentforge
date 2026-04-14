@@ -17,7 +17,12 @@ import type { Agent } from "@shared/schema";
 import { HfInference } from "@huggingface/inference";
 
 // Platform AI — powers agent chat when agent's own backend is unavailable
-const PLATFORM_AI_MODEL = process.env.PLATFORM_AI_MODEL || "Qwen/Qwen2.5-72B-Instruct";
+const PLATFORM_AI_MODEL = process.env.PLATFORM_AI_MODEL || "mistralai/Mistral-7B-Instruct-v0.3";
+const FALLBACK_MODELS = [
+  "mistralai/Mistral-7B-Instruct-v0.3",
+  "meta-llama/Llama-3.1-8B-Instruct",
+  "Qwen/Qwen2.5-72B-Instruct",
+];
 
 function getHfClient(): HfInference | null {
   const token = process.env.HF_API_TOKEN;
@@ -49,13 +54,31 @@ Stay in character. Be helpful, concise, and knowledgeable about your domain. Use
     })),
   ];
 
-  const res = await hf.chatCompletion({
-    model: agent.hfModelId || PLATFORM_AI_MODEL,
-    messages,
-    max_tokens: 1024,
-  });
+  // Try the agent's own model, then platform default, then fallbacks
+  const modelsToTry = [
+    ...(agent.hfModelId ? [agent.hfModelId] : []),
+    PLATFORM_AI_MODEL,
+    ...FALLBACK_MODELS,
+  ];
+  // Deduplicate
+  const uniqueModels = [...new Set(modelsToTry)];
 
-  return res.choices?.[0]?.message?.content || "";
+  for (const model of uniqueModels) {
+    try {
+      const res = await hf.chatCompletion({
+        model,
+        messages,
+        max_tokens: 1024,
+      });
+      const content = res.choices?.[0]?.message?.content;
+      if (content) return content;
+    } catch (err: any) {
+      console.error(`[platform-ai] Model ${model} failed:`, err.message);
+      continue;
+    }
+  }
+
+  return "";
 }
 
 // Stripe setup — set STRIPE_SECRET_KEY in environment
