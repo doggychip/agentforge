@@ -26,7 +26,10 @@ const FALLBACK_MODELS = [
 
 function getHfClient(): HfInference | null {
   const token = process.env.HF_API_TOKEN;
-  if (!token) return null;
+  if (!token) {
+    console.warn("[platform-ai] HF_API_TOKEN is not set — AI chat will use static fallback. Set it in your deployment environment.");
+    return null;
+  }
   return new HfInference(token);
 }
 
