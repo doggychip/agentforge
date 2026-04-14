@@ -69,9 +69,9 @@ function HeroSearch({ onSearch }: { onSearch: (q: string) => void }) {
   const hasResults = results && (results.agents.length > 0 || results.creators.length > 0);
 
   return (
-    <section className="relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-primary/10 pointer-events-none" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full bg-primary/5 blur-3xl pointer-events-none" />
+    <section className="relative">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-primary/10 pointer-events-none overflow-hidden" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full bg-primary/5 blur-3xl pointer-events-none overflow-hidden" />
 
       <div className="relative mx-auto max-w-4xl px-4 pt-16 pb-12 text-center">
         <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground mb-4 leading-tight">
