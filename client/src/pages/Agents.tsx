@@ -441,10 +441,10 @@ export default function Agents() {
                       </span>
                     </div>
                     <Badge
-                      variant={agent.pricing === "free" ? "secondary" : "default"}
-                      className={`text-xs font-semibold px-2.5 py-0.5 ${agent.pricing === "free" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : ""}`}
+                      variant="secondary"
+                      className="text-xs font-semibold px-2.5 py-0.5 bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                     >
-                      {formatPrice(agent.price, agent.pricing)}
+                      Free
                     </Badge>
                   </div>
                 </div>

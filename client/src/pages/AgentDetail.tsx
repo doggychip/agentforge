@@ -205,17 +205,7 @@ export default function AgentDetail() {
 
   const subscribeMutation = useMutation({
     mutationFn: async () => {
-      // For paid agents, redirect to Stripe Checkout
-      if (agentData && agentData.pricing !== "free" && agentData.price) {
-        const res = await apiRequest("POST", "/api/stripe/checkout", { agentId: id });
-        const data = await res.json();
-        if (data.url) {
-          window.open(data.url, "_blank");
-          return;
-        }
-        throw new Error(data.message || "Checkout failed");
-      }
-      // For free agents, just create a DB subscription
+      // Demo mode: all agents install for free
       await apiRequest("POST", "/api/subscriptions", {
         subscriberId: user?.id || "anonymous",
         subscriberType: "human",
@@ -225,11 +215,7 @@ export default function AgentDetail() {
       });
     },
     onSuccess: () => {
-      if (agentData?.pricing === "free" || !agentData?.price) {
-        setShowInstallModal(true);
-      } else {
-        toast({ title: "Checkout opened", description: "Complete payment in the new tab" });
-      }
+      setShowInstallModal(true);
       queryClient.invalidateQueries({ queryKey: ["/api/agents", id, "subscription-status"] });
     },
     onError: (err: any) => {
@@ -411,11 +397,20 @@ export default function AgentDetail() {
           <div className="rounded-lg border border-border bg-card p-4 space-y-3">
             <div className="text-center">
               <p className="text-2xl font-bold text-foreground">
-                {formatPrice(agent.price, agent.pricing)}
+                Free
               </p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">
-                {agent.pricing === "free" ? "Open source" : agent.pricing === "usage" ? "Per API call" : "Per month"}
-              </p>
+              {agent.pricing !== "free" && agent.price ? (
+                <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] text-muted-foreground line-through">{formatPrice(agent.price, agent.pricing)}</span>
+                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-amber-500/10 text-amber-600 border-amber-500/20">
+                    DEMO
+                  </Badge>
+                </div>
+              ) : (
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">
+                  Open source
+                </p>
+              )}
             </div>
 
             <Link href={`/playground/${agent.id}`}>
@@ -425,7 +420,7 @@ export default function AgentDetail() {
             </Link>
 
             {/* Installed state for free agents */}
-            {(subStatus?.subscribed || subscribeMutation.isSuccess || checkoutStatus === "success") && agent.pricing === "free" ? (
+            {(subStatus?.subscribed || subscribeMutation.isSuccess || checkoutStatus === "success") ? (
               <>
                 <div className="flex items-center justify-center gap-2 h-9 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm font-medium" data-testid="badge-installed">
                   <CheckCircle size={15} />
@@ -448,9 +443,7 @@ export default function AgentDetail() {
                 disabled={subscribeMutation.isPending || subStatus?.subscribed}
                 data-testid="button-subscribe"
               >
-                {subscribeMutation.isPending ? "..." : (subStatus?.subscribed || subscribeMutation.isSuccess || checkoutStatus === "success") ? (
-                  <span className="flex items-center gap-1.5"><CheckCircle size={14} /> Subscribed</span>
-                ) : agent.pricing === "free" ? "Install" : "Subscribe"}
+                {subscribeMutation.isPending ? "..." : "Install"}
               </Button>
             )}
 

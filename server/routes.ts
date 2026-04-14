@@ -2317,5 +2317,131 @@ ${agent.apiEndpoint ? `  UPSTREAM_URL = "${agent.apiEndpoint}"` : ""}
     }
   });
 
+  // ── Live GitHub stats with 1-hour TTL cache ──
+  const githubStatsCache = new Map<string, { data: any; expiresAt: number }>();
+
+  function extractGitHubOwnerRepo(url: string): { owner: string; repo: string } | null {
+    // Match github.com/owner/repo patterns
+    const match = url.match(/github\.com\/([^\/\s]+)\/([^\/\s#?]+)/);
+    if (!match) return null;
+    return { owner: match[1], repo: match[2].replace(/\.git$/, "") };
+  }
+
+  app.get("/api/agents/:id/live-stats", async (req, res) => {
+    try {
+      const agentId = asSingleParam(req.params.id);
+      const agent = await storage.getAgent(agentId);
+      if (!agent) return res.status(404).json({ message: "Agent not found" });
+
+      const endpoint = agent.apiEndpoint || "";
+      if (!endpoint.includes("github.com")) {
+        return res.json({ exists: false });
+      }
+
+      const parsed = extractGitHubOwnerRepo(endpoint);
+      if (!parsed) return res.json({ exists: false });
+
+      const cacheKey = `${parsed.owner}/${parsed.repo}`;
+      const cached = githubStatsCache.get(cacheKey);
+      if (cached && Date.now() < cached.expiresAt) {
+        return res.json(cached.data);
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
+      try {
+        const ghRes = await fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`, {
+          headers: { "Accept": "application/vnd.github.v3+json", "User-Agent": "AgentForge" },
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        if (!ghRes.ok) {
+          const result = { exists: false };
+          githubStatsCache.set(cacheKey, { data: result, expiresAt: Date.now() + 3600_000 });
+          return res.json(result);
+        }
+
+        const data = await ghRes.json();
+        const result = {
+          exists: true,
+          stars: data.stargazers_count,
+          forks: data.forks_count,
+          updatedAt: data.updated_at,
+          language: data.language,
+          description: data.description,
+        };
+        githubStatsCache.set(cacheKey, { data: result, expiresAt: Date.now() + 3600_000 });
+        return res.json(result);
+      } catch {
+        clearTimeout(timeout);
+        return res.json({ exists: false });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch live stats" });
+    }
+  });
+
+  // ── Bulk agent verification ──
+  app.post("/api/admin/verify-agents", async (_req, res) => {
+    try {
+      const allAgents = await storage.getAgents();
+      let verified = 0;
+      let broken = 0;
+      let noEndpoint = 0;
+      const brokenAgents: string[] = [];
+
+      const checks = allAgents.map(async (agent) => {
+        const endpoint = agent.apiEndpoint || "";
+        if (!endpoint.includes("github.com")) {
+          noEndpoint++;
+          return;
+        }
+
+        const parsed = extractGitHubOwnerRepo(endpoint);
+        if (!parsed) {
+          noEndpoint++;
+          return;
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+
+        try {
+          const ghRes = await fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`, {
+            method: "HEAD",
+            headers: { "User-Agent": "AgentForge" },
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          if (ghRes.ok) {
+            verified++;
+          } else {
+            broken++;
+            brokenAgents.push(agent.name);
+          }
+        } catch {
+          clearTimeout(timeout);
+          broken++;
+          brokenAgents.push(agent.name);
+        }
+      });
+
+      await Promise.all(checks);
+
+      res.json({
+        total: allAgents.length,
+        verified,
+        broken,
+        noEndpoint,
+        brokenAgents,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to verify agents" });
+    }
+  });
+
   return httpServer;
 }
