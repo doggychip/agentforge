@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import type { Agent, Creator } from "@shared/schema";
@@ -9,6 +9,7 @@ import {
   Search, TrendingUp, Users, Sparkles,
 } from "lucide-react";
 import { AgentAvatar } from "@/components/AgentAvatar";
+import { apiRequest } from "@/lib/queryClient";
 
 function formatNumber(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -22,11 +23,50 @@ function formatNumber(n: number) {
 
 function HeroSearch({ onSearch }: { onSearch: (q: string) => void }) {
   const [query, setQuery] = useState("");
+  const [results, setResults] = useState<{ agents: Agent[]; creators: Creator[] } | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setResults(null);
+      setShowDropdown(false);
+      return;
+    }
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await apiRequest("GET", `/api/search?q=${encodeURIComponent(query.trim())}`);
+        const data = await res.json();
+        setResults({ agents: data.agents || [], creators: data.creators || [] });
+        setShowDropdown(true);
+      } catch {
+        setResults(null);
+      }
+    }, 250);
+    return () => clearTimeout(debounceRef.current);
+  }, [query]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (query.trim()) onSearch(query.trim());
+    if (query.trim()) {
+      setShowDropdown(false);
+      onSearch(query.trim());
+    }
   }
+
+  const hasResults = results && (results.agents.length > 0 || results.creators.length > 0);
 
   return (
     <section className="relative overflow-hidden">
@@ -44,16 +84,83 @@ function HeroSearch({ onSearch }: { onSearch: (q: string) => void }) {
           Built by creators worldwide.
         </p>
 
-        <form onSubmit={handleSubmit} className="max-w-lg mx-auto relative mb-6">
-          <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <Input
-            type="text"
-            placeholder="Search agents, tools, creators..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="pl-10 pr-4 h-12 text-sm rounded-full border-border/60 bg-background shadow-sm focus-visible:ring-primary/30"
-          />
-        </form>
+        <div ref={wrapperRef} className="max-w-lg mx-auto relative mb-6">
+          <form onSubmit={handleSubmit}>
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none z-10" />
+            <Input
+              type="text"
+              placeholder="Search agents, tools, creators..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => { if (hasResults) setShowDropdown(true); }}
+              className="pl-10 pr-4 h-12 text-sm rounded-full border-border/60 bg-background shadow-sm focus-visible:ring-primary/30"
+            />
+          </form>
+
+          {showDropdown && hasResults && (
+            <div className="absolute left-0 right-0 top-14 z-50 bg-background border border-border rounded-xl shadow-xl overflow-hidden max-h-[400px] overflow-y-auto text-left">
+              {results.agents.length > 0 && (
+                <div>
+                  <div className="px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
+                    Agents & Tools
+                  </div>
+                  {results.agents.slice(0, 6).map((agent) => (
+                    <Link
+                      key={agent.id}
+                      href={`/agents/${agent.id}`}
+                      onClick={() => setShowDropdown(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors no-underline"
+                    >
+                      <AgentAvatar name={agent.name} className="w-7 h-7 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm font-medium text-foreground truncate block">{agent.name}</span>
+                        <span className="text-xs text-muted-foreground truncate block">{agent.description}</span>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium shrink-0 uppercase">
+                        {agent.category}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+              {results.creators.length > 0 && (
+                <div>
+                  <div className="px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
+                    Creators
+                  </div>
+                  {results.creators.slice(0, 4).map((creator) => (
+                    <Link
+                      key={creator.id}
+                      href={`/creators/${creator.id}`}
+                      onClick={() => setShowDropdown(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors no-underline"
+                    >
+                      <img src={creator.avatar} alt={creator.name} className="w-7 h-7 rounded-full bg-muted shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm font-medium text-foreground truncate block">{creator.name}</span>
+                        <span className="text-xs text-muted-foreground truncate block">@{creator.handle}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">{formatNumber(creator.subscribers)} subs</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+              <Link
+                href={`/agents?q=${encodeURIComponent(query)}`}
+                onClick={() => setShowDropdown(false)}
+                className="block px-3 py-2.5 text-xs text-primary font-medium hover:bg-muted/50 transition-colors no-underline text-center border-t border-border"
+              >
+                View all results for "{query}" →
+              </Link>
+            </div>
+          )}
+
+          {showDropdown && results && !hasResults && query.trim().length >= 2 && (
+            <div className="absolute left-0 right-0 top-14 z-50 bg-background border border-border rounded-xl shadow-xl p-6 text-center">
+              <p className="text-sm text-muted-foreground">No results for "{query}"</p>
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <Link href="/discover" className="no-underline">
