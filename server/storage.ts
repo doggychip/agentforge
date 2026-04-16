@@ -20,6 +20,12 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, ilike, or, desc, and, sql } from "drizzle-orm";
 
+type ApiUsageLogQueryOptions = {
+  agentId?: string;
+  since?: Date;
+  limit?: number;
+};
+
 // ─── Interface ───────────────────────────────────────────────
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -98,6 +104,10 @@ export interface IStorage {
 
   // Usage logging
   logApiUsage(log: InsertApiUsageLog): Promise<void>;
+  getApiUsageLogs(
+    userId: string,
+    opts?: ApiUsageLogQueryOptions
+  ): Promise<ApiUsageLog[]>;
   getUsageByKey(apiKeyId: string, since: Date): Promise<ApiUsageLog[]>;
   getUsageCountByKey(apiKeyId: string, since: Date): Promise<number>;
   getUsageStatsByUser(userId: string): Promise<{
@@ -390,6 +400,22 @@ class PgStorage implements IStorage {
   async logApiUsage(log: InsertApiUsageLog) {
     await db!.insert(apiUsageLogs).values(log);
   }
+  async getApiUsageLogs(userId: string, opts?: ApiUsageLogQueryOptions) {
+    const predicates = [eq(apiUsageLogs.userId, userId)];
+    if (opts?.agentId) predicates.push(eq(apiUsageLogs.agentId, opts.agentId));
+    if (opts?.since) predicates.push(sql`${apiUsageLogs.createdAt} >= ${opts.since}`);
+
+    const query = db!.select().from(apiUsageLogs)
+      .where(and(...predicates))
+      .orderBy(desc(apiUsageLogs.createdAt));
+
+    if (typeof opts?.limit === "number") {
+      const safeLimit = Math.max(0, Math.floor(opts.limit));
+      return query.limit(safeLimit);
+    }
+
+    return query;
+  }
   async getUsageByKey(apiKeyId: string, since: Date) {
     return db!.select().from(apiUsageLogs)
       .where(and(eq(apiUsageLogs.apiKeyId, apiKeyId), sql`${apiUsageLogs.createdAt} >= ${since}`))
@@ -609,7 +635,7 @@ class MemStorage implements IStorage {
   }
   async createAgent(insertAgent: InsertAgent) {
     const id = randomUUID();
-    const agent: Agent = { ...insertAgent, id, stars: 0, downloads: 0, status: "active", featured: false, longDescription: insertAgent.longDescription ?? null, price: insertAgent.price ?? null, currency: insertAgent.currency ?? "USD", apiEndpoint: insertAgent.apiEndpoint ?? null, hfSpaceUrl: insertAgent.hfSpaceUrl ?? null, hfModelId: insertAgent.hfModelId ?? null, backendType: insertAgent.backendType ?? "self-hosted" };
+    const agent: Agent = { ...insertAgent, id, stars: 0, downloads: 0, status: "active", featured: false, longDescription: insertAgent.longDescription ?? null, price: insertAgent.price ?? null, currency: insertAgent.currency ?? "USD", apiEndpoint: insertAgent.apiEndpoint ?? null, hfSpaceUrl: insertAgent.hfSpaceUrl ?? null, hfModelId: insertAgent.hfModelId ?? null, backendType: insertAgent.backendType ?? "self-hosted", dockerImage: insertAgent.dockerImage ?? null };
     this.agentsMap.set(id, agent);
     return agent;
   }
@@ -815,6 +841,7 @@ class MemStorage implements IStorage {
     const apiKey: ApiKey = {
       ...key,
       id,
+      agentId: key.agentId ?? null,
       lastUsedAt: null,
       createdAt: new Date(),
       revoked: false,
@@ -846,8 +873,22 @@ class MemStorage implements IStorage {
 
   // Usage logging (Mem)
   async logApiUsage(log: InsertApiUsageLog) {
-    const entry: ApiUsageLog = { ...log, id: randomUUID(), createdAt: new Date(), responseTimeMs: log.responseTimeMs ?? null };
+    const entry: ApiUsageLog = { ...log, id: randomUUID(), createdAt: new Date(), agentId: log.agentId ?? null, responseTimeMs: log.responseTimeMs ?? null };
     this.apiUsageLogsArr.push(entry);
+  }
+  async getApiUsageLogs(userId: string, opts?: ApiUsageLogQueryOptions) {
+    const filtered = this.apiUsageLogsArr
+      .filter(l => l.userId === userId)
+      .filter(l => opts?.agentId ? l.agentId === opts.agentId : true)
+      .filter(l => opts?.since ? l.createdAt >= opts.since : true)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    if (typeof opts?.limit === "number") {
+      const safeLimit = Math.max(0, Math.floor(opts.limit));
+      return filtered.slice(0, safeLimit);
+    }
+
+    return filtered;
   }
   async getUsageByKey(apiKeyId: string, since: Date) {
     return this.apiUsageLogsArr
