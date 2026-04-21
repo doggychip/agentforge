@@ -47,7 +47,7 @@ function AppRouter() {
         <Route path="/feed" component={Feed} />
         <Route path="/posts/:id" component={PostDetail} />
         <Route path="/new-post" component={NewPost} />
-        <Route path="/become-creator" component={BecomeCreator} />
+        <Route path="/become-creator" component={CreatorDashboard} />
         <Route path="/profile" component={Profile} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/settings/api-keys" component={ApiKeys} />

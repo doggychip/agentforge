@@ -168,9 +168,9 @@ function HeroSearch({ onSearch }: { onSearch: (q: string) => void }) {
               <Sparkles size={16} /> Explore Agents
             </Button>
           </Link>
-          <Link href="/become-creator" className="no-underline">
+          <Link href="/publish" className="no-underline">
             <Button variant="outline" size="lg" className="gap-2 font-medium rounded-full">
-              Become a Creator <ArrowRight size={16} />
+              Publish an Agent <ArrowRight size={16} />
             </Button>
           </Link>
         </div>

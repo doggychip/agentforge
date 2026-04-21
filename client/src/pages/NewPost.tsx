@@ -104,18 +104,11 @@ export default function NewPost() {
     );
   }
 
-  // No creator profile yet — show setup prompt
-  if (creatorProfile === null) {
+  // Creator profile loading
+  if (creatorProfile === null || creatorProfile === undefined) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
-        <Edit3 size={40} className="mx-auto mb-4 text-muted-foreground opacity-40" />
-        <h1 className="text-lg font-semibold mb-2">Become a creator</h1>
-        <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-          You need a creator profile to publish posts. Set up your profile to start sharing with the community.
-        </p>
-        <Link href="/become-creator" className="no-underline">
-          <Button size="sm">Set up creator profile</Button>
-        </Link>
+        <Loader2 size={24} className="animate-spin mx-auto text-muted-foreground" />
       </div>
     );
   }

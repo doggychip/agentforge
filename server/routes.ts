@@ -185,6 +185,33 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
   return res.status(401).json({ message: "Not authenticated" });
 }
 
+// Auto-create creator profile for a user if they don't have one
+async function ensureCreatorProfile(userId: string) {
+  const existing = await storage.getCreatorByUserId(userId);
+  if (existing) return existing;
+  const user = await storage.getUser(userId);
+  if (!user) return null;
+  const handle = (user.username || user.email.split("@")[0] || `user-${userId.slice(-6)}`)
+    .toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 30);
+  // Ensure handle uniqueness
+  let finalHandle = handle;
+  const existingHandle = await storage.getCreatorByHandle(handle);
+  if (existingHandle) {
+    finalHandle = `${handle}-${userId.slice(-4)}`;
+  }
+  return storage.createCreator({
+    userId,
+    name: user.displayName,
+    handle: finalHandle,
+    avatar: user.avatar || `https://api.dicebear.com/9.x/notionists/svg?seed=${finalHandle}`,
+    bio: "",
+    tags: [],
+    subscribers: 0,
+    agentCount: 0,
+    verified: false,
+  });
+}
+
 // In-memory rate limiter
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 const rateLimitDayStore = new Map<string, { count: number; resetAt: number }>();
@@ -643,35 +670,34 @@ export async function registerRoutes(
 
   // Current user's creator profile
   app.get("/api/creators/me", requireAuth, async (req, res) => {
-    const creator = await storage.getCreatorByUserId(req.session.userId!);
-    if (!creator) return res.status(404).json({ message: "No creator profile" });
+    const creator = await ensureCreatorProfile(req.session.userId!);
+    if (!creator) return res.status(500).json({ message: "Failed to create profile" });
     res.json(creator);
   });
 
-  // Create creator profile for current user
+  // Update creator profile
   app.post("/api/creators/me", requireAuth, async (req, res) => {
     try {
-      const existing = await storage.getCreatorByUserId(req.session.userId!);
-      if (existing) return res.status(409).json({ message: "Already have a creator profile" });
+      const creator = await ensureCreatorProfile(req.session.userId!);
+      if (!creator) return res.status(500).json({ message: "Failed to create profile" });
 
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) return res.status(401).json({ message: "Not authenticated" });
+      // If handle/bio/tags provided, update the profile
+      const updates: Record<string, any> = {};
+      if (req.body.handle) {
+        const existingHandle = await storage.getCreatorByHandle(req.body.handle);
+        if (existingHandle && existingHandle.id !== creator.id) {
+          return res.status(409).json({ message: "Handle already taken" });
+        }
+        updates.handle = req.body.handle;
+      }
+      if (req.body.bio !== undefined) updates.bio = req.body.bio;
+      if (req.body.tags) updates.tags = req.body.tags;
 
-      // Check handle uniqueness
-      const existingHandle = await storage.getCreatorByHandle(req.body.handle);
-      if (existingHandle) return res.status(409).json({ message: "Handle already taken" });
-
-      const creator = await storage.createCreator({
-        userId: req.session.userId!,
-        name: user.displayName,
-        handle: req.body.handle,
-        avatar: `https://api.dicebear.com/9.x/notionists/svg?seed=${req.body.handle}`,
-        bio: req.body.bio,
-        tags: req.body.tags || [],
-        subscribers: 0,
-        agentCount: 0,
-        verified: false,
-      });
+      if (Object.keys(updates).length > 0) {
+        await storage.updateCreator(creator.id, updates);
+        const updated = await storage.getCreatorByUserId(req.session.userId!);
+        return res.json(updated);
+      }
       res.status(201).json(creator);
     } catch (error) {
       console.error("Create creator error:", error);
