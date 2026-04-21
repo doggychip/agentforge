@@ -6,10 +6,11 @@ import pg from "pg";
 import crypto from "crypto";
 import Stripe from "stripe";
 // Clerk
-import { clerkMiddleware as _clerkMiddleware, getAuth as _getAuth, clerkClient as _clerkClient } from "@clerk/express";
+import { clerkMiddleware as _clerkMiddleware, getAuth as _getAuth, clerkClient as _clerkClient, verifyToken as _verifyToken } from "@clerk/express";
 const clerkMiddleware = _clerkMiddleware;
 const getAuth = _getAuth;
 const clerkClient = _clerkClient;
+const verifyToken = _verifyToken;
 import { storage } from "./storage";
 import { CONTENT_SOURCES } from "./content-sources";
 import { insertAgentSchema, type SafeUser } from "@shared/schema";
@@ -142,14 +143,15 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
 
   // 2. Try Clerk Bearer token from Authorization header directly
   const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith("Bearer ") && !authHeader.startsWith("Bearer af_k_") && clerkClient) {
+  if (authHeader?.startsWith("Bearer ") && !authHeader.startsWith("Bearer af_k_")) {
     try {
       const token = authHeader.slice(7);
-      const verified = await withTimeout(clerkClient.verifyToken(token));
+      const secretKey = process.env.CLERK_SECRET_KEY || "sk_test_4VAbVCj1eXgUvy2ov4CvBmaAryCDmmF8qSdFVomwhU";
+      const verified = await withTimeout(verifyToken(token, { secretKey }));
       if (verified?.sub) {
         req.session.userId = verified.sub;
         let user = await storage.getUser(verified.sub);
-        if (!user) {
+        if (!user && clerkClient) {
           const clerkUser = await withTimeout(clerkClient.users.getUser(verified.sub));
           user = await storage.createUser({
             username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${verified.sub.slice(-6)}`,
