@@ -117,7 +117,7 @@ function withTimeout<T>(promise: Promise<T>, ms = 5000): Promise<T> {
 // Middleware to require auth — Clerk token with session cache
 // Auto-creates a DB user from Clerk if one doesn't exist yet.
 async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // 1. Try Clerk token (source of truth for current user)
+  // 1. Try Clerk token via clerkMiddleware's getAuth
   if (getAuth) {
     try {
       const auth = getAuth(req);
@@ -136,17 +136,42 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
         if (user) return next();
       }
     } catch (err: any) {
-      console.error("[requireAuth] Clerk error:", err.message);
+      console.error("[requireAuth] Clerk getAuth error:", err.message);
     }
   }
 
-  // 2. Fall back to session (cached from last successful Clerk auth)
+  // 2. Try Clerk Bearer token from Authorization header directly
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ") && !authHeader.startsWith("Bearer af_k_") && clerkClient) {
+    try {
+      const token = authHeader.slice(7);
+      const verified = await withTimeout(clerkClient.verifyToken(token));
+      if (verified?.sub) {
+        req.session.userId = verified.sub;
+        let user = await storage.getUser(verified.sub);
+        if (!user) {
+          const clerkUser = await withTimeout(clerkClient.users.getUser(verified.sub));
+          user = await storage.createUser({
+            username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${verified.sub.slice(-6)}`,
+            email: clerkUser.emailAddresses[0]?.emailAddress || "",
+            password: crypto.randomBytes(32).toString("hex"),
+            displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "User",
+          });
+        }
+        if (user) return next();
+      }
+    } catch (err: any) {
+      console.error("[requireAuth] Clerk token verify error:", err.message);
+    }
+  }
+
+  // 3. Fall back to session (cached from last successful Clerk auth)
   if (req.session.userId) {
     const existing = await storage.getUser(req.session.userId);
     if (existing) return next();
   }
 
-  // 3. Fall back to API key auth
+  // 4. Fall back to API key auth
   if ((req as any).apiKeyUserId) {
     const user = await storage.getUser((req as any).apiKeyUserId);
     if (user) {

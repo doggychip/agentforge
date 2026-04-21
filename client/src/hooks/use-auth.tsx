@@ -1,6 +1,7 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
 import type { SafeUser } from "@shared/schema";
+import { setClerkTokenGetter } from "@/lib/queryClient";
 
 type AuthContextType = {
   user: SafeUser | null;
@@ -12,7 +13,12 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { user: clerkUser, isLoaded } = useUser();
-  const { signOut } = useClerkAuth();
+  const { signOut, getToken } = useClerkAuth();
+
+  // Wire up the Clerk token getter so apiRequest can include Bearer tokens
+  useEffect(() => {
+    setClerkTokenGetter(() => getToken());
+  }, [getToken]);
 
   // Map Clerk user to our SafeUser shape
   const user: SafeUser | null = clerkUser
