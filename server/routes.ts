@@ -114,17 +114,15 @@ function withTimeout<T>(promise: Promise<T>, ms = 5000): Promise<T> {
   ]);
 }
 
-// Middleware to require auth — always verifies current Clerk token
+// Middleware to require auth — Clerk token with session cache
 // Auto-creates a DB user from Clerk if one doesn't exist yet.
 async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // Always check Clerk token first
+  // 1. Try Clerk token (source of truth for current user)
   if (getAuth) {
     try {
       const auth = getAuth(req);
       if (auth?.userId) {
-        if (req.session.userId !== auth.userId) {
-          req.session.userId = auth.userId;
-        }
+        req.session.userId = auth.userId;
         let user = await storage.getUser(auth.userId);
         if (!user && clerkClient) {
           const clerkUser = await withTimeout(clerkClient.users.getUser(auth.userId));
@@ -138,11 +136,17 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
         if (user) return next();
       }
     } catch (err: any) {
-      console.error("[requireAuth] Clerk/DB error:", err.message);
+      console.error("[requireAuth] Clerk error:", err.message);
     }
   }
 
-  // Fallback: API key auth only (Bearer token already validated by global middleware)
+  // 2. Fall back to session (cached from last successful Clerk auth)
+  if (req.session.userId) {
+    const existing = await storage.getUser(req.session.userId);
+    if (existing) return next();
+  }
+
+  // 3. Fall back to API key auth
   if ((req as any).apiKeyUserId) {
     const user = await storage.getUser((req as any).apiKeyUserId);
     if (user) {
