@@ -2215,8 +2215,7 @@ export async function registerRoutes(
       const agentId = asSingleParam(req.params.id);
       const userId = req.session.userId!;
       const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // last 30 days
-      const logs = await storage.getApiUsageLogs(userId);
-      const agentLogs = logs.filter(l => l.agentId === agentId && new Date(l.createdAt) >= since);
+      const agentLogs = await storage.getApiUsageLogs(userId, { agentId, since });
 
       // Daily breakdown
       const daily: Record<string, number> = {};
