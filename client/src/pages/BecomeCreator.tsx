@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,6 +15,25 @@ export default function BecomeCreator() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
+
+  // Check if already a creator — redirect to dashboard
+  const { data: existingCreator, isLoading: checkingCreator } = useQuery<{ id: string } | null>({
+    queryKey: ["/api/creators/me"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", "/api/creators/me");
+        return res.json();
+      } catch { return null; }
+    },
+    enabled: !!user,
+  });
+
+  useEffect(() => {
+    if (existingCreator?.id) {
+      toast({ title: "You already have a creator profile!" });
+      navigate("/creator-dashboard");
+    }
+  }, [existingCreator]);
 
   const [handle, setHandle] = useState(user?.username ?? "");
 
