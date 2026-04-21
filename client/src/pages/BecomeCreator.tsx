@@ -102,13 +102,8 @@ export default function BecomeCreator() {
       <div className="mx-auto max-w-md px-4 py-16 text-center">
         <Rocket size={32} className="mx-auto mb-4 text-primary" />
         <h2 className="text-lg font-semibold mb-2">Become a Creator</h2>
-        <p className="text-sm text-muted-foreground mb-6">Sign in with Google or GitHub to get started.</p>
-        <SignInButton mode="modal" forceRedirectUrl="/#/become-creator">
-          <Button size="default" className="gap-2">
-            <Zap size={14} />
-            Sign in to continue
-          </Button>
-        </SignInButton>
+        <p className="text-sm text-muted-foreground mb-4">Sign in with Google or GitHub to get started.</p>
+        <p className="text-xs text-muted-foreground">Click <strong>Sign in</strong> in the top right corner, then come back here.</p>
       </div>
     );
   }
