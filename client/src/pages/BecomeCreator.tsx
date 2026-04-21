@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, Rocket, X } from "lucide-react";
+import { ArrowLeft, Loader2, Rocket, X, Zap } from "lucide-react";
 
 export default function BecomeCreator() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
@@ -89,12 +89,25 @@ export default function BecomeCreator() {
     }
   }
 
+  if (authLoading || checkingCreator) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-16 text-center">
+        <Loader2 size={24} className="animate-spin mx-auto text-muted-foreground" />
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
-        <p className="text-sm text-muted-foreground mb-4">Sign in first to become a creator.</p>
-        <SignInButton mode="modal">
-          <Button size="sm">Sign in</Button>
+        <Rocket size={32} className="mx-auto mb-4 text-primary" />
+        <h2 className="text-lg font-semibold mb-2">Become a Creator</h2>
+        <p className="text-sm text-muted-foreground mb-6">Sign in with Google or GitHub to get started.</p>
+        <SignInButton mode="modal" forceRedirectUrl="/#/become-creator">
+          <Button size="default" className="gap-2">
+            <Zap size={14} />
+            Sign in to continue
+          </Button>
         </SignInButton>
       </div>
     );
