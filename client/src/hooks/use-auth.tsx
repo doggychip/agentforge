@@ -1,12 +1,11 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
 import type { SafeUser } from "@shared/schema";
+import { setClerkTokenGetter } from "@/lib/queryClient";
 
 type AuthContextType = {
   user: SafeUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<SafeUser>;
-  register: (data: { username: string; email: string; password: string; displayName: string }) => Promise<SafeUser>;
   logout: () => Promise<void>;
 };
 
@@ -14,7 +13,12 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { user: clerkUser, isLoaded } = useUser();
-  const { signOut } = useClerkAuth();
+  const { signOut, getToken } = useClerkAuth();
+
+  // Wire up the Clerk token getter so apiRequest can include Bearer tokens
+  useEffect(() => {
+    setClerkTokenGetter(() => getToken());
+  }, [getToken]);
 
   // Map Clerk user to our SafeUser shape
   const user: SafeUser | null = clerkUser
@@ -33,22 +37,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     : null;
 
-  const login = async () => {
-    // Clerk handles login via its own UI components
-    throw new Error("Use Clerk SignIn component instead");
-  };
-
-  const register = async () => {
-    // Clerk handles registration via its own UI components
-    throw new Error("Use Clerk SignUp component instead");
-  };
-
   const logout = async () => {
     await signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading: !isLoaded, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading: !isLoaded, logout }}>
       {children}
     </AuthContext.Provider>
   );

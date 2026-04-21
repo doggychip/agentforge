@@ -1,523 +1,175 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import type { Agent, Creator } from "@shared/schema";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
-  DollarSign, CreditCard, Bot, Users, Zap, Code, Shield, Terminal,
-  BarChart3, Key, Bell, FileText, ArrowRight, Globe, Cpu, Package,
-  TrendingUp, Network, Star,
+  Bot, Wrench, Globe, ArrowRight, Star, Download,
+  Search, TrendingUp, Users, Sparkles,
 } from "lucide-react";
-import { translations, type Locale, type Translations } from "./for-creators-i18n";
 import { AgentAvatar } from "@/components/AgentAvatar";
-
-/* ------------------------------------------------------------------ */
-/*  Tiny helpers                                                       */
-/* ------------------------------------------------------------------ */
-
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-xl font-bold tracking-tight text-foreground">{children}</h2>;
-}
-
-function SectionSub({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">{children}</p>;
-}
-
-function IconBox({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-      {children}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Language switcher (compact)                                        */
-/* ------------------------------------------------------------------ */
-
-const localeLabels: { locale: Locale; label: string }[] = [
-  { locale: "en", label: "EN" },
-  { locale: "zh", label: "中文" },
-  { locale: "ja", label: "日本語" },
-  { locale: "ko", label: "한국어" },
-];
-
-function LangSwitcher({ locale, setLocale }: { locale: Locale; setLocale: (l: Locale) => void }) {
-  return (
-    <div className="flex items-center gap-1" data-testid="lang-switcher">
-      {localeLabels.map((item) => (
-        <button
-          key={item.locale}
-          onClick={() => {
-            setLocale(item.locale);
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-          className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-            locale === item.locale
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
-          }`}
-          data-testid={`lang-${item.locale}`}
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Section 1: Hero — lead with Asia-first positioning                 */
-/* ------------------------------------------------------------------ */
-
-function Hero({ t, locale, setLocale }: { t: Translations; locale: Locale; setLocale: (l: Locale) => void }) {
-  return (
-    <section className="relative overflow-hidden" data-testid="section-hero">
-      {/* Gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-primary/10 pointer-events-none" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-3xl pointer-events-none" />
-
-      {/* Floating lang switcher */}
-      <div className="absolute top-4 right-4 z-10">
-        <LangSwitcher locale={locale} setLocale={setLocale} />
-      </div>
-
-      <div className="relative mx-auto max-w-4xl px-4 py-20 text-center">
-        <Badge variant="secondary" className="mb-4" data-testid="badge-founding">
-          <Zap size={12} className="mr-1" /> {t.hero.badge}
-        </Badge>
-
-        <h1 className="text-xl font-bold tracking-tight text-foreground mb-4">
-          {t.hero.heading}
-        </h1>
-
-        <p className="text-sm text-muted-foreground max-w-xl mx-auto mb-3 leading-relaxed">
-          {t.hero.sub}
-        </p>
-
-        <p className="text-xs text-muted-foreground/70 max-w-md mx-auto mb-8 leading-relaxed">
-          {t.hero.sub2}
-        </p>
-
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Link href="/become-creator" className="no-underline">
-            <Button size="lg" className="gap-2 font-medium" data-testid="button-hero-get-started">
-              {t.hero.ctaGetStarted} <ArrowRight size={16} />
-            </Button>
-          </Link>
-          <Link href="/docs" className="no-underline">
-            <Button size="lg" variant="outline" className="gap-2 font-medium" data-testid="button-hero-docs">
-              <FileText size={16} /> {t.hero.ctaDocs}
-            </Button>
-          </Link>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Section 2: Why AgentForge — 3 differentiators                      */
-/* ------------------------------------------------------------------ */
-
-const diffIcons = [Globe, Network, Package];
-
-function WhyAgentForge({ t }: { t: Translations }) {
-  return (
-    <section className="mx-auto max-w-5xl px-4 py-16" data-testid="section-why">
-      <div className="text-center mb-10">
-        <SectionHeading>{t.why.heading}</SectionHeading>
-        <SectionSub>{t.why.sub}</SectionSub>
-      </div>
-
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {t.why.cards.map((card, i) => {
-          const Icon = diffIcons[i];
-          return (
-            <Card key={i} className="border-border/60 bg-card/50" data-testid={`card-diff-${i}`}>
-              <CardContent className="pt-6">
-                <IconBox><Icon size={20} /></IconBox>
-                <h3 className="text-sm font-semibold mt-4 mb-2 text-foreground">{card.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{card.description}</p>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Section 3: The Economics — revenue comparison                      */
-/* ------------------------------------------------------------------ */
-
-const competitors = [
-  { name: "GPT Store", share: "~1-3%", highlight: false },
-  { name: "Shopify Apps", share: "80%", highlight: false },
-  { name: "Gumroad", share: "90%", highlight: false },
-  { name: "MindStudio", share: "100%", highlight: false },
-  { name: "AgentForge", share: "90%", highlight: true },
-];
-
-function Economics({ t }: { t: Translations }) {
-  return (
-    <section className="bg-muted/30 border-y border-border/40" data-testid="section-economics">
-      <div className="mx-auto max-w-5xl px-4 py-16">
-        <div className="text-center mb-10">
-          <SectionHeading>{t.economics.heading}</SectionHeading>
-          <SectionSub>{t.economics.sub}</SectionSub>
-        </div>
-
-        <div className="max-w-2xl mx-auto rounded-lg border border-border overflow-hidden">
-          <div className="grid grid-cols-3 gap-0 text-xs font-semibold text-muted-foreground bg-muted/50 px-4 py-2.5 border-b border-border">
-            <span>{t.economics.colPlatform}</span>
-            <span>{t.economics.colKeeps}</span>
-            <span>{t.economics.colCatch}</span>
-          </div>
-          {competitors.map((c) => (
-            <div
-              key={c.name}
-              className={`grid grid-cols-3 gap-0 text-xs px-4 py-3 border-b last:border-0 border-border/50 ${
-                c.highlight ? "bg-primary/5 font-medium" : ""
-              }`}
-              data-testid={`row-${c.name.toLowerCase().replace(/\s+/g, "-")}`}
-            >
-              <span className={c.highlight ? "text-primary font-semibold" : "text-foreground"}>{c.name}</span>
-              <span className={c.highlight ? "text-primary font-semibold" : "text-foreground"}>{c.share}</span>
-              <span className="text-muted-foreground">{t.economics.notes[c.name]}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Section 4: What You Can Sell                                       */
-/* ------------------------------------------------------------------ */
-
-const sellIcons = [Cpu, Code, FileText, Package];
-
-function WhatYouCanSell({ t }: { t: Translations }) {
-  return (
-    <section className="mx-auto max-w-5xl px-4 py-16" data-testid="section-sell">
-      <div className="text-center mb-10">
-        <SectionHeading>{t.sell.heading}</SectionHeading>
-        <SectionSub>{t.sell.sub}</SectionSub>
-      </div>
-
-      <div className="grid gap-6 sm:grid-cols-2">
-        {t.sell.items.map((item, i) => {
-          const Icon = sellIcons[i];
-          return (
-            <div key={i} className="flex items-start gap-4 p-4 rounded-lg border border-border/40 bg-background/60" data-testid={`sell-${i}`}>
-              <IconBox><Icon size={20} /></IconBox>
-              <div>
-                <h3 className="text-sm font-semibold text-foreground mb-1">{item.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{item.description}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Section 5: How It Works                                            */
-/* ------------------------------------------------------------------ */
-
-function HowItWorks({ t }: { t: Translations }) {
-  return (
-    <section className="bg-muted/30 border-y border-border/40" data-testid="section-how-it-works">
-      <div className="mx-auto max-w-5xl px-4 py-16">
-        <div className="text-center mb-10">
-          <SectionHeading>{t.howItWorks.heading}</SectionHeading>
-          <SectionSub>{t.howItWorks.sub}</SectionSub>
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {t.howItWorks.steps.map((step, i) => (
-            <div key={i} className="text-center" data-testid={`step-${i + 1}`}>
-              <div className="mx-auto mb-3 h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-                {i + 1}
-              </div>
-              <h3 className="text-sm font-semibold text-foreground mb-1">{step.title}</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">{step.description}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Section 6: Built for Developers                                    */
-/* ------------------------------------------------------------------ */
-
-const devIcons = [Terminal, BarChart3, Shield, Key, Bell, FileText];
-
-function BuiltForDevs({ t }: { t: Translations }) {
-  return (
-    <section className="mx-auto max-w-5xl px-4 py-16" data-testid="section-devs">
-      <div className="text-center mb-10">
-        <SectionHeading>{t.devs.heading}</SectionHeading>
-        <SectionSub>{t.devs.sub}</SectionSub>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {t.devs.features.map((item, i) => {
-          const Icon = devIcons[i];
-          return (
-            <div key={i} className="flex items-start gap-3 p-4 rounded-lg border border-border/40 bg-muted/20" data-testid={`dev-${i}`}>
-              <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                <Icon size={16} />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-foreground mb-0.5">{item.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{item.description}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Section 7: Community — Asian focus with real context                */
-/* ------------------------------------------------------------------ */
-
-const regionFlags = [
-  ["🇭🇰", "🇹🇼", "🇸🇬"],
-  ["🇯🇵"],
-  ["🇰🇷", "🇮🇩", "🇹🇭"],
-];
-
-const regionLocales: Locale[] = ["zh", "ja", "ko"];
-
-function Community({ t, locale, setLocale }: { t: Translations; locale: Locale; setLocale: (l: Locale) => void }) {
-  return (
-    <section className="bg-muted/30 border-y border-border/40" data-testid="section-community">
-      <div className="mx-auto max-w-5xl px-4 py-16">
-        <div className="text-center mb-8">
-          <SectionHeading>{t.community.heading}</SectionHeading>
-          <SectionSub>{t.community.sub}</SectionSub>
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-3 text-center mb-8">
-          {t.community.regions.map((region, i) => (
-            <button
-              key={i}
-              onClick={() => {
-                setLocale(regionLocales[i]);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              className={`p-4 rounded-lg border text-left transition-colors cursor-pointer ${
-                locale === regionLocales[i]
-                  ? "border-primary/60 bg-primary/5"
-                  : "border-border/40 bg-background/60 hover:border-border"
-              }`}
-              data-testid={`region-card-${i}`}
-            >
-              <div className="flex items-center justify-center gap-2 text-lg mb-2">
-                {regionFlags[i].map((flag, fi) => <span key={fi}>{flag}</span>)}
-              </div>
-              <h3 className="text-sm font-semibold text-foreground mb-1 text-center">{region.title}</h3>
-              <p className="text-xs text-muted-foreground text-center">{region.description}</p>
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center justify-center gap-3 flex-wrap">
-          {localeLabels.map((item) => (
-            <Badge
-              key={item.locale}
-              variant={locale === item.locale ? "default" : "outline"}
-              className="gap-1.5 cursor-pointer"
-              onClick={() => {
-                setLocale(item.locale);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              data-testid={`badge-lang-${item.locale}`}
-            >
-              <Globe size={12} /> {item.label}
-            </Badge>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Section 8: Featured Agents                                         */
-/* ------------------------------------------------------------------ */
-
-function formatPrice(price: number | null, pricing: string) {
-  if (pricing === "free" || !price) return "Free";
-  if (pricing === "usage") return `$${(price / 100).toFixed(2)}/call`;
-  return `$${(price / 100).toFixed(0)}/mo`;
-}
+import { apiRequest } from "@/lib/queryClient";
 
 function formatNumber(n: number) {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return n.toString();
 }
 
-function FeaturedAgents() {
-  const { data: agents } = useQuery<Agent[]>({
-    queryKey: ["/api/agents"],
-  });
+/* ------------------------------------------------------------------ */
+/*  Hero + Search                                                      */
+/* ------------------------------------------------------------------ */
 
-  // Show top agents by stars
-  const displayed = (agents || [])
-    .sort((a, b) => b.stars - a.stars)
-    .slice(0, 6);
+function HeroSearch({ onSearch }: { onSearch: (q: string) => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<{ agents: Agent[]; creators: Creator[] } | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  if (displayed.length === 0) return null;
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setResults(null);
+      setShowDropdown(false);
+      return;
+    }
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await apiRequest("GET", `/api/search?q=${encodeURIComponent(query.trim())}`);
+        const data = await res.json();
+        setResults({ agents: data.agents || [], creators: data.creators || [] });
+        setShowDropdown(true);
+      } catch {
+        setResults(null);
+      }
+    }, 250);
+    return () => clearTimeout(debounceRef.current);
+  }, [query]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (query.trim()) {
+      setShowDropdown(false);
+      onSearch(query.trim());
+    }
+  }
+
+  const hasResults = results && (results.agents.length > 0 || results.creators.length > 0);
 
   return (
-    <section className="mx-auto max-w-5xl px-4 py-16" data-testid="section-featured-agents">
-      <div className="text-center mb-10">
-        <SectionHeading>Popular agents</SectionHeading>
-        <SectionSub>Discover top-rated agents built by our creator community</SectionSub>
-      </div>
+    <section className="relative">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-primary/10 pointer-events-none overflow-hidden" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full bg-primary/5 blur-3xl pointer-events-none overflow-hidden" />
 
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {displayed.map((agent) => (
-          <Link
-            key={agent.id}
-            href={`/agents/${agent.id}`}
-            className="group block no-underline"
-          >
-            <Card className="border-border/60 bg-card/50 h-full transition-all duration-200 hover:border-primary/30 hover:shadow-md">
-              <CardContent className="pt-5 pb-4">
-                <div className="flex items-start gap-3 mb-3">
-                  <AgentAvatar name={agent.name} className="w-10 h-10" />
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                      {agent.name}
-                    </h3>
-                    <Badge variant="secondary" className="text-[10px] font-medium uppercase tracking-wider mt-1">
-                      {agent.category}
-                    </Badge>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mb-3">
-                  {agent.description}
-                </p>
-                <div className="flex items-center justify-between pt-2 border-t border-border/40">
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Star size={12} className="text-yellow-500" />
-                    {formatNumber(agent.stars)}
-                  </span>
-                  <span className={`text-xs font-semibold ${agent.pricing === "free" ? "text-emerald-500" : "text-primary"}`}>
-                    {formatPrice(agent.price, agent.pricing)}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      <div className="relative mx-auto max-w-4xl px-4 pt-16 pb-12 text-center">
+        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground mb-4 leading-tight">
+          The AI agent platform<br />
+          <span className="text-primary">for builders.</span>
+        </h1>
 
-      <div className="text-center mt-8">
-        <Link href="/agents" className="no-underline">
-          <Button variant="outline" className="gap-2 text-sm font-medium">
-            View all agents <ArrowRight size={14} />
-          </Button>
-        </Link>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Section 9: Featured Creators                                       */
-/* ------------------------------------------------------------------ */
-
-function FeaturedCreators() {
-  const { data: creators } = useQuery<Creator[]>({
-    queryKey: ["/api/creators"],
-  });
-
-  // Show top creators by subscriber count
-  const displayed = (creators || [])
-    .sort((a, b) => b.subscribers - a.subscribers)
-    .slice(0, 6);
-
-  if (displayed.length === 0) return null;
-
-  return (
-    <section className="bg-muted/30 border-y border-border/40" data-testid="section-featured-creators">
-      <div className="mx-auto max-w-5xl px-4 py-16">
-        <div className="text-center mb-10">
-          <SectionHeading>Top creators</SectionHeading>
-          <SectionSub>Meet the builders powering the AgentForge ecosystem</SectionSub>
-        </div>
-
-        <div className="flex items-center justify-center gap-8 flex-wrap">
-          {displayed.map((creator) => (
-            <Link
-              key={creator.id}
-              href={`/creators/${creator.id}`}
-              className="group no-underline flex flex-col items-center gap-2 w-24"
-            >
-              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-border/60 group-hover:border-primary/50 transition-colors">
-                <img
-                  src={creator.avatar}
-                  alt={creator.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <span className="text-xs font-medium text-foreground text-center truncate w-full group-hover:text-primary transition-colors">
-                {creator.name}
-              </span>
-            </Link>
-          ))}
-        </div>
-
-        <div className="text-center mt-8">
-          <Link href="/creators" className="no-underline">
-            <Button variant="outline" className="gap-2 text-sm font-medium">
-              Discover creators <ArrowRight size={14} />
-            </Button>
-          </Link>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Section 10: Final CTA                                              */
-/* ------------------------------------------------------------------ */
-
-function FinalCTA() {
-  return (
-    <section className="relative overflow-hidden" data-testid="section-final-cta">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-primary/5 pointer-events-none" />
-      <div className="relative mx-auto max-w-3xl px-4 py-20 text-center">
-        <h2 className="text-xl font-bold tracking-tight text-foreground mb-3">Ready to get started?</h2>
-        <p className="text-sm text-muted-foreground max-w-lg mx-auto mb-8 leading-relaxed">
-          Join a growing community of creators and users building the future of AI agents. Whether you want to discover powerful tools or share your own creations, AgentForge is the place.
+        <p className="text-base text-muted-foreground max-w-xl mx-auto mb-8 leading-relaxed">
+          Discover, share, and deploy AI agents, tools, and APIs.
+          Built by creators worldwide.
         </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Link href="/agents" className="no-underline">
-            <Button size="lg" variant="outline" className="gap-2 font-medium">
-              <Bot size={16} /> Browse Agents
+
+        <div ref={wrapperRef} className="max-w-lg mx-auto relative mb-6">
+          <form onSubmit={handleSubmit}>
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none z-10" />
+            <Input
+              type="text"
+              placeholder="Search agents, tools, creators..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => { if (hasResults) setShowDropdown(true); }}
+              className="pl-10 pr-4 h-12 text-sm rounded-full border-border/60 bg-background shadow-sm focus-visible:ring-primary/30"
+            />
+          </form>
+
+          {showDropdown && hasResults && (
+            <div className="absolute left-0 right-0 top-14 z-50 bg-background border border-border rounded-xl shadow-xl overflow-hidden max-h-[400px] overflow-y-auto text-left">
+              {results.agents.length > 0 && (
+                <div>
+                  <div className="px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
+                    Agents & Tools
+                  </div>
+                  {results.agents.slice(0, 6).map((agent) => (
+                    <Link
+                      key={agent.id}
+                      href={`/agents/${agent.id}`}
+                      onClick={() => setShowDropdown(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors no-underline"
+                    >
+                      <AgentAvatar name={agent.name} className="w-7 h-7 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm font-medium text-foreground truncate block">{agent.name}</span>
+                        <span className="text-xs text-muted-foreground truncate block">{agent.description}</span>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium shrink-0 uppercase">
+                        {agent.category}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+              {results.creators.length > 0 && (
+                <div>
+                  <div className="px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
+                    Creators
+                  </div>
+                  {results.creators.slice(0, 4).map((creator) => (
+                    <Link
+                      key={creator.id}
+                      href={`/creators/${creator.id}`}
+                      onClick={() => setShowDropdown(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors no-underline"
+                    >
+                      <img src={creator.avatar} alt={creator.name} className="w-7 h-7 rounded-full bg-muted shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm font-medium text-foreground truncate block">{creator.name}</span>
+                        <span className="text-xs text-muted-foreground truncate block">@{creator.handle}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">{formatNumber(creator.subscribers)} subs</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+              <Link
+                href={`/agents?q=${encodeURIComponent(query)}`}
+                onClick={() => setShowDropdown(false)}
+                className="block px-3 py-2.5 text-xs text-primary font-medium hover:bg-muted/50 transition-colors no-underline text-center border-t border-border"
+              >
+                View all results for "{query}" →
+              </Link>
+            </div>
+          )}
+
+          {showDropdown && results && !hasResults && query.trim().length >= 2 && (
+            <div className="absolute left-0 right-0 top-14 z-50 bg-background border border-border rounded-xl shadow-xl p-6 text-center">
+              <p className="text-sm text-muted-foreground">No results for "{query}"</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-center gap-3 flex-wrap">
+          <Link href="/discover" className="no-underline">
+            <Button variant="default" size="lg" className="gap-2 font-medium rounded-full">
+              <Sparkles size={16} /> Explore Agents
             </Button>
           </Link>
           <Link href="/become-creator" className="no-underline">
-            <Button size="lg" className="gap-2 font-medium">
+            <Button variant="outline" size="lg" className="gap-2 font-medium rounded-full">
               Become a Creator <ArrowRight size={16} />
             </Button>
           </Link>
@@ -528,38 +180,200 @@ function FinalCTA() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Section 11: Bottom CTA                                             */
+/*  Stats bar                                                          */
 /* ------------------------------------------------------------------ */
 
-function BottomCTA({ t }: { t: Translations }) {
+function StatsBar() {
+  const { data: stats } = useQuery<{
+    totalAgents: number;
+    totalCreators: number;
+    totalDownloads: number;
+    totalSubscribers: number;
+    categories: Record<string, number>;
+  }>({ queryKey: ["/api/stats"] });
+
+  if (!stats) return null;
+
+  const items = [
+    { label: "Agents", value: formatNumber(stats.totalAgents), icon: <Bot size={15} /> },
+    { label: "Creators", value: formatNumber(stats.totalCreators), icon: <Users size={15} /> },
+    { label: "Downloads", value: formatNumber(stats.totalDownloads), icon: <Download size={15} /> },
+  ];
+
   return (
-    <section className="relative overflow-hidden" data-testid="section-cta">
-      <div className="absolute inset-0 bg-gradient-to-t from-primary/5 via-background to-background pointer-events-none" />
+    <div className="border-y border-border/40 bg-muted/20">
+      <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-center gap-8 flex-wrap">
+        {items.map((item) => (
+          <div key={item.label} className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{item.icon}</span>
+            <span className="font-bold text-foreground">{item.value}</span>
+            <span className="text-muted-foreground">{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-      <div className="relative mx-auto max-w-3xl px-4 py-20 text-center">
-        <SectionHeading>{t.cta.heading}</SectionHeading>
-        <p className="text-sm text-muted-foreground mt-3 mb-6 max-w-lg mx-auto">
-          {t.cta.sub}
+/* ------------------------------------------------------------------ */
+/*  Trending section (3-column: Agents / Tools / APIs)                 */
+/* ------------------------------------------------------------------ */
+
+const categoryConfig = [
+  { key: "agent", label: "Agents", icon: <Bot size={18} /> },
+  { key: "tool", label: "Tools", icon: <Wrench size={18} /> },
+  { key: "api", label: "APIs", icon: <Globe size={18} /> },
+] as const;
+
+function TrendingItem({ agent, creator }: { agent: Agent; creator?: Creator }) {
+  return (
+    <Link
+      href={`/agents/${agent.id}`}
+      className="group flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors no-underline border border-transparent hover:border-border/60"
+    >
+      <AgentAvatar name={agent.name} className="w-9 h-9 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+            {agent.name}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground truncate mt-0.5">
+          {agent.description}
         </p>
+        <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Download size={11} /> {formatNumber(agent.downloads)}
+          </span>
+          <span className="flex items-center gap-1">
+            <Star size={11} className="text-yellow-500" /> {formatNumber(agent.stars)}
+          </span>
+          {creator && (
+            <span className="truncate">by {creator.name}</span>
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+}
 
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Link href="/become-creator" className="no-underline">
-            <Button size="lg" className="gap-2 font-medium" data-testid="button-cta-get-started">
-              {t.cta.ctaButton} <ArrowRight size={16} />
+function TrendingSection() {
+  const { data: agents = [], isLoading } = useQuery<Agent[]>({
+    queryKey: ["/api/agents"],
+  });
+
+  const { data: creators = [] } = useQuery<Creator[]>({
+    queryKey: ["/api/creators"],
+  });
+
+  const creatorMap = useMemo(() => {
+    const map = new Map<string, Creator>();
+    creators.forEach((c) => map.set(c.id, c));
+    return map;
+  }, [creators]);
+
+  const columns = useMemo(() => {
+    return categoryConfig.map(({ key }) => {
+      return agents
+        .filter((a) => a.category === key)
+        .sort((a, b) => b.stars - a.stars)
+        .slice(0, 6);
+    });
+  }, [agents]);
+
+  if (isLoading) return null;
+
+  return (
+    <section className="mx-auto max-w-6xl px-4 py-12">
+      <div className="text-center mb-8">
+        <h2 className="text-xl font-bold text-foreground flex items-center justify-center gap-2">
+          <TrendingUp size={20} className="text-primary" />
+          Trending this week
+        </h2>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {categoryConfig.map((cat, i) => (
+          <div key={cat.key}>
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <span className="text-primary">{cat.icon}</span>
+              <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">{cat.label}</h3>
+            </div>
+            <div className="space-y-1">
+              {columns[i].map((agent) => (
+                <TrendingItem
+                  key={agent.id}
+                  agent={agent}
+                  creator={creatorMap.get(agent.creatorId)}
+                />
+              ))}
+              {columns[i].length === 0 && (
+                <p className="text-xs text-muted-foreground p-3">No {cat.label.toLowerCase()} yet</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-center gap-4 mt-10 flex-wrap">
+        {categoryConfig.map((cat) => (
+          <Link key={cat.key} href="/agents" className="no-underline">
+            <Button variant="outline" className="gap-2 text-sm font-medium rounded-full">
+              {cat.icon} Browse {cat.label}
             </Button>
           </Link>
+        ))}
+        <Link href="/creators" className="no-underline">
+          <Button variant="outline" className="gap-2 text-sm font-medium rounded-full">
+            <Users size={16} /> Browse Creators
+          </Button>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Featured Creators strip                                            */
+/* ------------------------------------------------------------------ */
+
+function FeaturedCreators() {
+  const { data: creators } = useQuery<Creator[]>({
+    queryKey: ["/api/creators"],
+  });
+
+  const displayed = (creators || [])
+    .sort((a, b) => b.subscribers - a.subscribers)
+    .slice(0, 8);
+
+  if (displayed.length === 0) return null;
+
+  return (
+    <section className="border-t border-border/40 bg-muted/20">
+      <div className="mx-auto max-w-6xl px-4 py-10">
+        <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider text-center mb-6">
+          Top Creators
+        </h2>
+        <div className="flex items-center justify-center gap-6 flex-wrap">
+          {displayed.map((creator) => (
+            <Link
+              key={creator.id}
+              href={`/creators/${creator.id}`}
+              className="group no-underline flex flex-col items-center gap-2 w-20"
+            >
+              <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-border/60 group-hover:border-primary/50 transition-colors">
+                <img
+                  src={creator.avatar}
+                  alt={creator.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className="text-[11px] font-medium text-muted-foreground text-center truncate w-full group-hover:text-primary transition-colors">
+                {creator.name}
+              </span>
+            </Link>
+          ))}
         </div>
-
-        <p className="mt-4 text-xs text-muted-foreground">
-          {t.cta.questions}{" "}
-          <a href="mailto:doggychip888@gmail.com" className="text-primary hover:underline">
-            doggychip888@gmail.com
-          </a>
-        </p>
-
-        <Badge variant="secondary" className="mt-4">
-          <Zap size={12} className="mr-1" /> {t.cta.foundingBadge}
-        </Badge>
       </div>
     </section>
   );
@@ -570,22 +384,18 @@ function BottomCTA({ t }: { t: Translations }) {
 /* ------------------------------------------------------------------ */
 
 export default function ForCreators() {
-  const [locale, setLocale] = useState<Locale>("en");
-  const t = translations[locale];
+  const [, setLocation] = useLocation();
+
+  function handleSearch(query: string) {
+    setLocation(`/agents?q=${encodeURIComponent(query)}`);
+  }
 
   return (
-    <div data-testid="page-for-creators">
-      <Hero t={t} locale={locale} setLocale={setLocale} />
-      <WhyAgentForge t={t} />
-      <Economics t={t} />
-      <WhatYouCanSell t={t} />
-      <HowItWorks t={t} />
-      <BuiltForDevs t={t} />
-      <Community t={t} locale={locale} setLocale={setLocale} />
-      <FeaturedAgents />
+    <div>
+      <HeroSearch onSearch={handleSearch} />
+      <StatsBar />
+      <TrendingSection />
       <FeaturedCreators />
-      <FinalCTA />
-      <BottomCTA t={t} />
     </div>
   );
 }

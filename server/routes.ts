@@ -5,11 +5,6 @@ import connectPgSimple from "connect-pg-simple";
 import pg from "pg";
 import crypto from "crypto";
 import Stripe from "stripe";
-import nodemailer from "nodemailer";
-import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import { generateSecret as otpGenerateSecret, generateURI as otpGenerateURI, verifySync as otpVerifySync } from "otplib";
-import QRCode from "qrcode";
 // Clerk
 import { clerkMiddleware as _clerkMiddleware, getAuth as _getAuth, clerkClient as _clerkClient } from "@clerk/express";
 const clerkMiddleware = _clerkMiddleware;
@@ -17,8 +12,77 @@ const getAuth = _getAuth;
 const clerkClient = _clerkClient;
 import { storage } from "./storage";
 import { CONTENT_SOURCES } from "./content-sources";
-import { registerSchema, loginSchema, insertAgentSchema, type SafeUser } from "@shared/schema";
-import bcrypt from "bcryptjs";
+import { insertAgentSchema, type SafeUser } from "@shared/schema";
+import type { Agent } from "@shared/schema";
+import { HfInference } from "@huggingface/inference";
+
+// Platform AI — powers agent chat when agent's own backend is unavailable
+const PLATFORM_AI_MODEL = process.env.PLATFORM_AI_MODEL || "mistralai/Mistral-7B-Instruct-v0.3";
+const FALLBACK_MODELS = [
+  "mistralai/Mistral-7B-Instruct-v0.3",
+  "meta-llama/Llama-3.1-8B-Instruct",
+  "Qwen/Qwen2.5-72B-Instruct",
+];
+
+function getHfClient(): HfInference | null {
+  const token = process.env.HF_API_TOKEN;
+  if (!token) {
+    console.warn("[platform-ai] HF_API_TOKEN is not set — AI chat will use static fallback. Set it in your deployment environment.");
+    return null;
+  }
+  return new HfInference(token);
+}
+
+async function platformAIChat(
+  agent: Agent,
+  chatHistory: Array<{ role: string; content: string }>,
+): Promise<string> {
+  const hf = getHfClient();
+  if (!hf) return "";
+
+  const systemPrompt = `You are "${agent.name}", an AI agent on the AgentForge marketplace.
+
+Description: ${agent.description}
+${agent.longDescription ? `Details: ${agent.longDescription}` : ""}
+Tags: ${(agent.tags as string[] || []).join(", ")}
+Category: ${agent.category}
+
+Stay in character. Be helpful, concise, and knowledgeable about your domain. Use markdown formatting when appropriate.`;
+
+  const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+    { role: "system", content: systemPrompt },
+    ...chatHistory.map(m => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    })),
+  ];
+
+  // Try the agent's own model, then platform default, then fallbacks
+  const modelsToTry = [
+    ...(agent.hfModelId ? [agent.hfModelId] : []),
+    PLATFORM_AI_MODEL,
+    ...FALLBACK_MODELS,
+  ];
+  // Deduplicate
+  const uniqueModels = [...new Set(modelsToTry)];
+
+  for (const model of uniqueModels) {
+    try {
+      const res = await hf.chatCompletion({
+        model,
+        messages,
+        max_tokens: 1024,
+      });
+      const content = res.choices?.[0]?.message?.content;
+      if (content) return content;
+    } catch (err: any) {
+      console.error(`[platform-ai] Model ${model} failed:`, err.message);
+      continue;
+    }
+  }
+
+  return "";
+}
 
 // Stripe setup — set STRIPE_SECRET_KEY in environment
 const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || "";
@@ -42,20 +106,78 @@ function toSafeUser(user: { id: string; username: string; email: string; display
   return safe as SafeUser;
 }
 
-// Middleware to require auth — supports both session and Clerk token
-function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // Check session first (legacy)
-  if (req.session.userId) return next();
+// Timeout wrapper for external API calls
+function withTimeout<T>(promise: Promise<T>, ms = 5000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("API timeout")), ms)),
+  ]);
+}
 
-  // Check Clerk token
+// Middleware to require auth — Clerk token with session cache
+// Auto-creates a DB user from Clerk if one doesn't exist yet.
+async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  // 1. Try Clerk token via clerkMiddleware's getAuth
   if (getAuth) {
     try {
       const auth = getAuth(req);
       if (auth?.userId) {
         req.session.userId = auth.userId;
-        return next();
+        let user = await storage.getUser(auth.userId);
+        if (!user && clerkClient) {
+          const clerkUser = await withTimeout(clerkClient.users.getUser(auth.userId));
+          user = await storage.createUser({
+            username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${auth.userId.slice(-6)}`,
+            email: clerkUser.emailAddresses[0]?.emailAddress || "",
+            password: crypto.randomBytes(32).toString("hex"),
+            displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "User",
+          });
+        }
+        if (user) return next();
       }
-    } catch {}
+    } catch (err: any) {
+      console.error("[requireAuth] Clerk getAuth error:", err.message);
+    }
+  }
+
+  // 2. Try Clerk Bearer token from Authorization header directly
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ") && !authHeader.startsWith("Bearer af_k_") && clerkClient) {
+    try {
+      const token = authHeader.slice(7);
+      const verified = await withTimeout(clerkClient.verifyToken(token));
+      if (verified?.sub) {
+        req.session.userId = verified.sub;
+        let user = await storage.getUser(verified.sub);
+        if (!user) {
+          const clerkUser = await withTimeout(clerkClient.users.getUser(verified.sub));
+          user = await storage.createUser({
+            username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${verified.sub.slice(-6)}`,
+            email: clerkUser.emailAddresses[0]?.emailAddress || "",
+            password: crypto.randomBytes(32).toString("hex"),
+            displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "User",
+          });
+        }
+        if (user) return next();
+      }
+    } catch (err: any) {
+      console.error("[requireAuth] Clerk token verify error:", err.message);
+    }
+  }
+
+  // 3. Fall back to session (cached from last successful Clerk auth)
+  if (req.session.userId) {
+    const existing = await storage.getUser(req.session.userId);
+    if (existing) return next();
+  }
+
+  // 4. Fall back to API key auth
+  if ((req as any).apiKeyUserId) {
+    const user = await storage.getUser((req as any).apiKeyUserId);
+    if (user) {
+      req.session.userId = (req as any).apiKeyUserId;
+      return next();
+    }
   }
 
   return res.status(401).json({ message: "Not authenticated" });
@@ -165,8 +287,9 @@ export async function registerRoutes(
   process.env.CLERK_PUBLISHABLE_KEY = process.env.CLERK_PUBLISHABLE_KEY || "pk_test_Zmx5aW5nLXNsb3RoLTMuY2xlcmsuYWNjb3VudHMuZGV2JA";
   if (clerkMiddleware) {
     try {
-      app.use(clerkMiddleware());
-      console.log("[clerk] Middleware initialized");
+      // Only apply Clerk to API routes — static files don't need auth
+      app.use("/api", clerkMiddleware());
+      console.log("[clerk] Middleware initialized (API routes only)");
     } catch (err: any) {
       console.error("[clerk] Failed to initialize:", err.message);
     }
@@ -223,500 +346,32 @@ export async function registerRoutes(
     });
   });
 
-  // ─── Auth Routes ─────────────────────────────────────────────
+  // ─── Auth Routes (Clerk only) ────────────────────────────────
 
-  // Register
-  app.post("/api/auth/register", async (req, res) => {
-    try {
-      const data = registerSchema.parse(req.body);
-
-      // Check if email or username already taken
-      const existingEmail = await storage.getUserByEmail(data.email);
-      if (existingEmail) {
-        return res.status(409).json({ message: "Email already registered" });
-      }
-      const existingUsername = await storage.getUserByUsername(data.username);
-      if (existingUsername) {
-        return res.status(409).json({ message: "Username already taken" });
-      }
-
-      // Hash password and create user
-      const hashedPassword = await bcrypt.hash(data.password, 12);
-      const user = await storage.createUser({
-        username: data.username,
-        email: data.email,
-        password: hashedPassword,
-        displayName: data.displayName,
-      });
-
-      // Generate email verification token
-      const verifyToken = crypto.randomBytes(32).toString("hex");
-      emailVerificationTokens.set(verifyToken, { userId: user.id, email: user.email, expiresAt: Date.now() + 24 * 3600_000 });
-      const origin = `${req.protocol}://${req.get("host")}`;
-      const verifyUrl = `${origin}/#/verify-email?token=${verifyToken}`;
-      console.log(`[auth] Email verification link for ${user.email}: ${verifyUrl}`);
-
-      // Set session — explicit save for Postgres-backed store
-      req.session.userId = user.id;
-      req.session.save((err) => {
-        if (err) {
-          console.error("Session save error (register):", err);
-          return res.status(500).json({ message: "Session error" });
-        }
-        res.status(201).json(toSafeUser(user));
-      });
-    } catch (error: any) {
-      if (error.name === "ZodError") {
-        return res.status(400).json({ message: error.errors[0]?.message || "Invalid input" });
-      }
-      console.error("Register error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  // Login rate limiting by IP
-  const loginAttempts = new Map<string, { count: number; blockedUntil: number }>();
-  const LOGIN_MAX_ATTEMPTS = 5;
-  const LOGIN_BLOCK_MINUTES = 15;
-
-  app.post("/api/auth/login", async (req, res) => {
-    try {
-      const ip = req.ip || req.socket.remoteAddress || "unknown";
-      const now = Date.now();
-      const attempt = loginAttempts.get(ip);
-
-      if (attempt && now < attempt.blockedUntil) {
-        const retryAfter = Math.ceil((attempt.blockedUntil - now) / 1000);
-        res.set("Retry-After", String(retryAfter));
-        return res.status(429).json({
-          message: `Too many login attempts. Try again in ${Math.ceil(retryAfter / 60)} minutes.`,
-        });
-      }
-
-      const data = loginSchema.parse(req.body);
-
-      const user = await storage.getUserByEmail(data.email);
-      if (!user) {
-        // Track failed attempt
-        const entry = loginAttempts.get(ip) || { count: 0, blockedUntil: 0 };
-        entry.count++;
-        if (entry.count >= LOGIN_MAX_ATTEMPTS) {
-          entry.blockedUntil = now + LOGIN_BLOCK_MINUTES * 60_000;
-          entry.count = 0;
-        }
-        loginAttempts.set(ip, entry);
-        return res.status(401).json({ message: "Invalid email or password" });
-      }
-
-      const validPassword = await bcrypt.compare(data.password, user.password);
-      if (!validPassword) {
-        const entry = loginAttempts.get(ip) || { count: 0, blockedUntil: 0 };
-        entry.count++;
-        if (entry.count >= LOGIN_MAX_ATTEMPTS) {
-          entry.blockedUntil = now + LOGIN_BLOCK_MINUTES * 60_000;
-          entry.count = 0;
-        }
-        loginAttempts.set(ip, entry);
-        return res.status(401).json({ message: "Invalid email or password" });
-      }
-
-      // Clear attempts on success
-      loginAttempts.delete(ip);
-
-      // If 2FA is enabled, require TOTP verification before granting session
-      if (user.totpEnabled && user.totpSecret) {
-        const tempToken = crypto.randomBytes(32).toString("hex");
-        pending2faLogins.set(tempToken, { userId: user.id, expiresAt: Date.now() + 300_000 }); // 5 min
-        return res.json({ requires2fa: true, tempToken });
-      }
-
-      req.session.userId = user.id;
-      req.session.save((err) => {
-        if (err) {
-          console.error("Session save error (login):", err);
-          return res.status(500).json({ message: "Session error" });
-        }
-        res.json(toSafeUser(user));
-      });
-    } catch (error: any) {
-      if (error.name === "ZodError") {
-        return res.status(400).json({ message: error.errors[0]?.message || "Invalid input" });
-      }
-      console.error("Login error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  // ─── Forgot Username ──────────────────────────────────────
-  app.post("/api/auth/forgot-username", async (req, res) => {
-    try {
-      const { email } = req.body;
-      if (!email) return res.status(400).json({ message: "Email is required" });
-      const user = await storage.getUserByEmail(email);
-      if (!user) {
-        // Don't reveal whether email exists
-        return res.json({ message: "If an account with that email exists, the username has been sent." });
-      }
-      res.json({ message: "If an account with that email exists, the username has been sent.", username: user.username });
-    } catch (error: any) {
-      console.error("Forgot username error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  // ─── Token stores ─────────────────────────────────────────
-  const passwordResetTokens = new Map<string, { userId: string; expiresAt: number }>();
-  const emailVerificationTokens = new Map<string, { userId: string; email: string; expiresAt: number }>();
-  const pending2faLogins = new Map<string, { userId: string; expiresAt: number }>();
-
-  // ─── Forgot Password ──────────────────────────────────────
-
-  app.post("/api/auth/forgot-password", async (req, res) => {
-    try {
-      const { email } = req.body;
-      if (!email) return res.status(400).json({ message: "Email is required" });
-
-      const user = await storage.getUserByEmail(email);
-      // Always return success to avoid leaking whether email exists
-      const successMsg = "If an account with that email exists, a password reset link has been sent.";
-
-      if (!user) return res.json({ message: successMsg });
-
-      // Generate token
-      const token = crypto.randomBytes(32).toString("hex");
-      passwordResetTokens.set(token, { userId: user.id, expiresAt: Date.now() + 3600_000 }); // 1 hour
-
-      // Build reset URL
-      const origin = `${req.protocol}://${req.get("host")}`;
-      const resetUrl = `${origin}/#/reset-password?token=${token}`;
-
-      // Try to send email if SMTP is configured
-      const smtpHost = process.env.SMTP_HOST;
-      const smtpUser = process.env.SMTP_USER;
-      const smtpPass = process.env.SMTP_PASS;
-
-      if (smtpHost && smtpUser && smtpPass) {
-        const transporter = nodemailer.createTransport({
-          host: smtpHost,
-          port: parseInt(process.env.SMTP_PORT || "587"),
-          secure: process.env.SMTP_PORT === "465",
-          auth: { user: smtpUser, pass: smtpPass },
-        });
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM || smtpUser,
-          to: email,
-          subject: "AgentForge — Reset Your Password",
-          html: `<p>Hi ${user.displayName},</p><p>Click the link below to reset your password (expires in 1 hour):</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>If you didn't request this, you can ignore this email.</p>`,
-        });
-        console.log(`[auth] Password reset email sent to ${email}`);
-      } else {
-        // No email configured — log link for admin use
-        console.log(`[auth] Password reset link for ${email}: ${resetUrl}`);
-      }
-
-      res.json({ message: successMsg });
-    } catch (error: any) {
-      console.error("Forgot password error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  app.post("/api/auth/reset-password", async (req, res) => {
-    try {
-      const { token, password } = req.body;
-      if (!token || !password) return res.status(400).json({ message: "Token and password are required" });
-      if (password.length < 8) return res.status(400).json({ message: "Password must be at least 8 characters" });
-
-      const entry = passwordResetTokens.get(token);
-      if (!entry || Date.now() > entry.expiresAt) {
-        passwordResetTokens.delete(token);
-        return res.status(400).json({ message: "Invalid or expired reset token" });
-      }
-
-      const hashedPassword = await bcrypt.hash(password, 12);
-      await storage.updateUser(entry.userId, { password: hashedPassword });
-      passwordResetTokens.delete(token);
-
-      res.json({ message: "Password has been reset. You can now log in." });
-    } catch (error: any) {
-      console.error("Reset password error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  // ─── Google OAuth ─────────────────────────────────────────
-  const googleClientId = process.env.GOOGLE_CLIENT_ID;
-  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-  if (googleClientId && googleClientSecret) {
-    passport.use(new GoogleStrategy({
-      clientID: googleClientId,
-      clientSecret: googleClientSecret,
-      callbackURL: "/api/auth/google/callback",
-    }, async (_accessToken, _refreshToken, profile, done) => {
-      try {
-        const email = profile.emails?.[0]?.value;
-        if (!email) return done(new Error("No email from Google"));
-
-        // Check if user exists by Google ID or email
-        let user = await storage.getUserByGoogleId(profile.id);
-        if (!user) {
-          user = await storage.getUserByEmail(email);
-          if (user) {
-            // Link Google account to existing user
-            await storage.updateUser(user.id, { googleId: profile.id, emailVerified: true });
-            user = await storage.getUser(user.id);
-          } else {
-            // Create new user
-            const randomPassword = crypto.randomBytes(32).toString("hex");
-            user = await storage.createUser({
-              username: email.split("@")[0] + "_" + Math.random().toString(36).slice(2, 6),
-              email,
-              password: await bcrypt.hash(randomPassword, 12),
-              displayName: profile.displayName || email.split("@")[0],
-            });
-            await storage.updateUser(user!.id, { googleId: profile.id, emailVerified: true, avatar: profile.photos?.[0]?.value });
-            user = await storage.getUser(user!.id);
-          }
-        }
-        done(null, user!);
-      } catch (err) {
-        done(err as Error);
-      }
-    }));
-
-    app.get("/api/auth/google", passport.authenticate("google", { scope: ["profile", "email"], session: false }));
-
-    app.get("/api/auth/google/callback", (req, res, next) => {
-      passport.authenticate("google", { session: false }, (err: any, user: any) => {
-        if (err || !user) {
-          return res.redirect("/#/auth?error=google_failed");
-        }
-        req.session.userId = user.id;
-        req.session.save(() => {
-          res.redirect("/#/");
-        });
-      })(req, res, next);
-    });
-  }
-
-  // Check which auth providers are available
-  app.get("/api/auth/providers", (_req, res) => {
-    res.json({
-      google: !!googleClientId,
-      email: true,
-    });
-  });
-
-  // ─── Email Verification ──────────────────────────────────
-  app.post("/api/auth/send-verification", requireAuth, async (req, res) => {
-    try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) return res.status(404).json({ message: "User not found" });
-      if (user.emailVerified) return res.json({ message: "Email already verified" });
-
-      // Generate token
-      const token = crypto.randomBytes(32).toString("hex");
-      emailVerificationTokens.set(token, { userId: user.id, email: user.email, expiresAt: Date.now() + 24 * 3600_000 });
-
-      const origin = `${req.protocol}://${req.get("host")}`;
-      const verifyUrl = `${origin}/#/verify-email?token=${token}`;
-
-      // Try to send email if SMTP is configured
-      const smtpHost = process.env.SMTP_HOST;
-      const smtpUser = process.env.SMTP_USER;
-      const smtpPass = process.env.SMTP_PASS;
-
-      if (smtpHost && smtpUser && smtpPass) {
-        const transporter = nodemailer.createTransport({
-          host: smtpHost,
-          port: parseInt(process.env.SMTP_PORT || "587"),
-          secure: process.env.SMTP_PORT === "465",
-          auth: { user: smtpUser, pass: smtpPass },
-        });
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM || smtpUser,
-          to: user.email,
-          subject: "AgentForge — Verify Your Email",
-          html: `<p>Hi ${user.displayName},</p><p>Click the link below to verify your email (expires in 24 hours):</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>`,
-        });
-        console.log(`[auth] Verification email sent to ${user.email}`);
-      } else {
-        console.log(`[auth] Email verification link for ${user.email}: ${verifyUrl}`);
-      }
-
-      res.json({ message: "Verification email sent" });
-    } catch (error: any) {
-      console.error("Send verification error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  app.post("/api/auth/verify-email", async (req, res) => {
-    try {
-      const { token } = req.body;
-      if (!token) return res.status(400).json({ message: "Token is required" });
-
-      const entry = emailVerificationTokens.get(token);
-      if (!entry || Date.now() > entry.expiresAt) {
-        emailVerificationTokens.delete(token);
-        return res.status(400).json({ message: "Invalid or expired verification token" });
-      }
-
-      await storage.updateUser(entry.userId, { emailVerified: true });
-      emailVerificationTokens.delete(token);
-
-      res.json({ message: "Email verified successfully" });
-    } catch (error: any) {
-      console.error("Verify email error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  // ─── 2FA (TOTP) ──────────────────────────────────────────
-  app.post("/api/auth/2fa/setup", requireAuth, async (req, res) => {
-    try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) return res.status(404).json({ message: "User not found" });
-      if (user.totpEnabled) return res.status(400).json({ message: "2FA is already enabled" });
-
-      const secret = otpGenerateSecret();
-      // Store the secret temporarily (not yet enabled)
-      await storage.updateUser(user.id, { totpSecret: secret });
-
-      const otpauth = otpGenerateURI({ issuer: "AgentForge", label: user.email, secret });
-      const qrCodeDataUrl = await QRCode.toDataURL(otpauth);
-
-      res.json({ secret, qrCode: qrCodeDataUrl });
-    } catch (error: any) {
-      console.error("2FA setup error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  app.post("/api/auth/2fa/enable", requireAuth, async (req, res) => {
-    try {
-      const { code } = req.body;
-      if (!code) return res.status(400).json({ message: "TOTP code is required" });
-
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) return res.status(404).json({ message: "User not found" });
-      if (user.totpEnabled) return res.status(400).json({ message: "2FA is already enabled" });
-      if (!user.totpSecret) return res.status(400).json({ message: "Run 2FA setup first" });
-
-      const isValid = otpVerifySync({ token: code, secret: user.totpSecret }).valid;
-      if (!isValid) return res.status(400).json({ message: "Invalid TOTP code" });
-
-      await storage.updateUser(user.id, { totpEnabled: true });
-      res.json({ message: "2FA enabled successfully" });
-    } catch (error: any) {
-      console.error("2FA enable error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  app.post("/api/auth/2fa/disable", requireAuth, async (req, res) => {
-    try {
-      const { code } = req.body;
-      if (!code) return res.status(400).json({ message: "TOTP code is required" });
-
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) return res.status(404).json({ message: "User not found" });
-      if (!user.totpEnabled || !user.totpSecret) return res.status(400).json({ message: "2FA is not enabled" });
-
-      const isValid = otpVerifySync({ token: code, secret: user.totpSecret }).valid;
-      if (!isValid) return res.status(400).json({ message: "Invalid TOTP code" });
-
-      await storage.updateUser(user.id, { totpEnabled: false, totpSecret: null });
-      res.json({ message: "2FA disabled successfully" });
-    } catch (error: any) {
-      console.error("2FA disable error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  app.post("/api/auth/2fa/verify-login", async (req, res) => {
-    try {
-      const { tempToken, code } = req.body;
-      if (!tempToken || !code) return res.status(400).json({ message: "Temp token and TOTP code are required" });
-
-      const entry = pending2faLogins.get(tempToken);
-      if (!entry || Date.now() > entry.expiresAt) {
-        pending2faLogins.delete(tempToken);
-        return res.status(400).json({ message: "Invalid or expired 2FA session" });
-      }
-
-      const user = await storage.getUser(entry.userId);
-      if (!user || !user.totpSecret) {
-        pending2faLogins.delete(tempToken);
-        return res.status(400).json({ message: "User not found" });
-      }
-
-      const isValid = otpVerifySync({ token: code, secret: user.totpSecret }).valid;
-      if (!isValid) return res.status(400).json({ message: "Invalid TOTP code" });
-
-      pending2faLogins.delete(tempToken);
-
-      req.session.userId = user.id;
-      req.session.save((err) => {
-        if (err) {
-          console.error("Session save error (2fa-login):", err);
-          return res.status(500).json({ message: "Session error" });
-        }
-        res.json(toSafeUser(user));
-      });
-    } catch (error: any) {
-      console.error("2FA verify-login error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  // Logout
-  app.post("/api/auth/logout", (req, res) => {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ message: "Failed to logout" });
-      }
-      res.clearCookie("connect.sid");
-      res.json({ message: "Logged out" });
-    });
-  });
-
-  // Get current user — supports both session and Clerk
+  // Get current user — Clerk auth
   app.get("/api/auth/me", async (req, res) => {
-    // Try session first
-    if (req.session.userId) {
-      const user = await storage.getUser(req.session.userId);
-      if (user) return res.json(toSafeUser(user));
-      req.session.destroy(() => {});
-    }
-
-    // Try Clerk
     if (getAuth) {
       try {
         const auth = getAuth(req);
         if (auth?.userId) {
           let user = await storage.getUser(auth.userId);
           if (!user && clerkClient) {
-            try {
-              const clerkUser = await clerkClient.users.getUser(auth.userId);
-              user = await storage.createUser({
-                username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${auth.userId.slice(-6)}`,
-                email: clerkUser.emailAddresses[0]?.emailAddress || "",
-                password: crypto.randomBytes(32).toString("hex"),
-                displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "User",
-              });
-            } catch (createErr: any) {
-              console.error("Failed to auto-create user from Clerk:", createErr.message);
-              return res.status(401).json({ message: "Not authenticated" });
-            }
+            const clerkUser = await withTimeout(clerkClient.users.getUser(auth.userId));
+            user = await storage.createUser({
+              username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${auth.userId.slice(-6)}`,
+              email: clerkUser.emailAddresses[0]?.emailAddress || "",
+              password: crypto.randomBytes(32).toString("hex"),
+              displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "User",
+            });
           }
           if (user) {
             req.session.userId = auth.userId;
             return res.json(toSafeUser(user));
           }
         }
-      } catch {}
+      } catch (err: any) {
+        console.error("[/api/auth/me] Error:", err.message);
+      }
     }
 
     return res.status(401).json({ message: "Not authenticated" });
@@ -744,6 +399,22 @@ export async function registerRoutes(
     }
     const agents = await storage.getAgents();
     res.json(agents);
+  });
+
+  app.get("/api/agents/new-arrivals", async (_req, res) => {
+    try {
+      const allAgents = await storage.getAgents();
+      // Sort by ID descending — UUID-style IDs are newer than short IDs like "a1"
+      const sorted = [...allAgents].sort((a, b) => {
+        // UUIDs (longer IDs) are newer than short IDs
+        if (a.id.length !== b.id.length) return b.id.length - a.id.length;
+        return b.id.localeCompare(a.id);
+      });
+      const limit = parseInt(asSingleParam(_req.query.limit as string) || "20", 10);
+      res.json(sorted.slice(0, limit));
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get new arrivals" });
+    }
   });
 
   app.get("/api/agents/trending", async (_req, res) => {
@@ -2102,6 +1773,36 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Daily Auto-Import Scheduler ─────────────────────────────
+  // Runs every 24 hours to pull latest agents from GitHub Trending & HuggingFace
+  const IMPORT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  async function runDailyImport() {
+    console.log("[Scheduler] Starting daily auto-import...");
+    try {
+      const [github, huggingface] = await Promise.all([
+        importFromGitHub().catch(err => {
+          console.error("[Scheduler] GitHub import failed:", err.message);
+          return { imported: 0, skipped: 0, errors: 1, agents: [] as string[] };
+        }),
+        importFromHuggingFace().catch(err => {
+          console.error("[Scheduler] HuggingFace import failed:", err.message);
+          return { imported: 0, skipped: 0, errors: 1, agents: [] as string[] };
+        }),
+      ]);
+      console.log(`[Scheduler] Daily import done: GitHub(${github.imported} new, ${github.skipped} skipped), HF(${huggingface.imported} new, ${huggingface.skipped} skipped)`);
+    } catch (err: any) {
+      console.error("[Scheduler] Daily import failed:", err.message);
+    }
+  }
+
+  // Run first import 30 seconds after startup, then every 24 hours
+  setTimeout(() => {
+    runDailyImport();
+    setInterval(runDailyImport, IMPORT_INTERVAL_MS);
+  }, 30 * 1000);
+  console.log("[Scheduler] Daily auto-import scheduled (every 24h, first run in 30s)");
+
   // ─── HF Inference Proxy ──────────────────────────────────────
 
   app.post("/api/agents/:id/invoke", requireApiKeyOrSession, async (req, res) => {
@@ -2370,48 +2071,38 @@ export async function registerRoutes(
     let assistantContent = "";
 
     try {
-      if (agent.backendType === "hf-inference" && agent.hfModelId) {
-        const hfToken = process.env.HF_API_TOKEN;
-        if (!hfToken) {
-          assistantContent = "I'm currently unavailable — the inference service is not configured. Please try again later.";
-        } else {
-          const hfRes = await fetch("https://router.huggingface.co/v1/chat/completions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${hfToken}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: agent.hfModelId, messages: chatHistory }),
-          });
-          if (hfRes.ok) {
-            const data = await hfRes.json();
-            assistantContent = data.choices?.[0]?.message?.content || "No response from model.";
-          } else {
-            assistantContent = "Sorry, I encountered an error processing your request.";
-          }
-        }
-      } else if (agent.backendType === "self-hosted" && agent.apiEndpoint) {
-        // Validate no SSRF
+      // 1. Try the agent's own backend first (self-hosted with a real API endpoint)
+      if (agent.backendType === "self-hosted" && agent.apiEndpoint) {
         const targetUrl = new URL(agent.apiEndpoint);
-        if (["localhost", "127.0.0.1", "0.0.0.0"].includes(targetUrl.hostname)) {
-          assistantContent = "This agent's endpoint is not accessible.";
-        } else {
-          const proxyRes = await fetch(agent.apiEndpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: chatHistory }),
-          });
-          if (proxyRes.ok) {
-            const data = await proxyRes.json();
-            assistantContent = data.choices?.[0]?.message?.content || data.response || data.content || JSON.stringify(data);
-          } else {
-            assistantContent = "Sorry, I encountered an error processing your request.";
-          }
+        const isRealApi = !["localhost", "127.0.0.1", "0.0.0.0"].includes(targetUrl.hostname)
+          && !targetUrl.hostname.includes("github.com");
+        if (isRealApi) {
+          try {
+            const proxyRes = await fetch(agent.apiEndpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ messages: chatHistory }),
+            });
+            if (proxyRes.ok) {
+              const data = await proxyRes.json();
+              assistantContent = data.choices?.[0]?.message?.content || data.response || data.content || JSON.stringify(data);
+            }
+          } catch {}
         }
-      } else {
-        // Demo fallback for agents without a configured backend
-        assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nThis is a demo conversation. To get full functionality, the agent creator needs to configure an inference backend.\n\nFeel free to explore what I can do!`;
+      }
+
+      // 2. Fall back to platform AI (HuggingFace Inference)
+      if (!assistantContent) {
+        assistantContent = await platformAIChat(agent, chatHistory);
+      }
+
+      // 3. Static fallback if no AI service is configured
+      if (!assistantContent) {
+        assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nAI responses require the \`HF_API_TOKEN\` environment variable to be set. Please configure it with a [free HuggingFace token](https://huggingface.co/settings/tokens) to enable AI chat.`;
       }
     } catch (err: any) {
       console.error("Playground invoke error:", err);
-      assistantContent = "Sorry, something went wrong. Please try again.";
+      assistantContent = `Hi! I'm **${agent.name}** — ${agent.description}\n\nSomething went wrong. Please try again.`;
     }
 
     const assistantMsg = await storage.createMessage({ conversationId: conv.id, role: "assistant", content: assistantContent });
@@ -2705,6 +2396,132 @@ ${agent.apiEndpoint ? `  UPSTREAM_URL = "${agent.apiEndpoint}"` : ""}
       res.json(enriched);
     } catch (error: any) {
       res.status(500).json({ message: "Failed to fetch A2A subscriptions" });
+    }
+  });
+
+  // ── Live GitHub stats with 1-hour TTL cache ──
+  const githubStatsCache = new Map<string, { data: any; expiresAt: number }>();
+
+  function extractGitHubOwnerRepo(url: string): { owner: string; repo: string } | null {
+    // Match github.com/owner/repo patterns
+    const match = url.match(/github\.com\/([^\/\s]+)\/([^\/\s#?]+)/);
+    if (!match) return null;
+    return { owner: match[1], repo: match[2].replace(/\.git$/, "") };
+  }
+
+  app.get("/api/agents/:id/live-stats", async (req, res) => {
+    try {
+      const agentId = asSingleParam(req.params.id);
+      const agent = await storage.getAgent(agentId);
+      if (!agent) return res.status(404).json({ message: "Agent not found" });
+
+      const endpoint = agent.apiEndpoint || "";
+      if (!endpoint.includes("github.com")) {
+        return res.json({ exists: false });
+      }
+
+      const parsed = extractGitHubOwnerRepo(endpoint);
+      if (!parsed) return res.json({ exists: false });
+
+      const cacheKey = `${parsed.owner}/${parsed.repo}`;
+      const cached = githubStatsCache.get(cacheKey);
+      if (cached && Date.now() < cached.expiresAt) {
+        return res.json(cached.data);
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
+      try {
+        const ghRes = await fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`, {
+          headers: { "Accept": "application/vnd.github.v3+json", "User-Agent": "AgentForge" },
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        if (!ghRes.ok) {
+          const result = { exists: false };
+          githubStatsCache.set(cacheKey, { data: result, expiresAt: Date.now() + 3600_000 });
+          return res.json(result);
+        }
+
+        const data = await ghRes.json();
+        const result = {
+          exists: true,
+          stars: data.stargazers_count,
+          forks: data.forks_count,
+          updatedAt: data.updated_at,
+          language: data.language,
+          description: data.description,
+        };
+        githubStatsCache.set(cacheKey, { data: result, expiresAt: Date.now() + 3600_000 });
+        return res.json(result);
+      } catch {
+        clearTimeout(timeout);
+        return res.json({ exists: false });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch live stats" });
+    }
+  });
+
+  // ── Bulk agent verification ──
+  app.post("/api/admin/verify-agents", async (_req, res) => {
+    try {
+      const allAgents = await storage.getAgents();
+      let verified = 0;
+      let broken = 0;
+      let noEndpoint = 0;
+      const brokenAgents: string[] = [];
+
+      const checks = allAgents.map(async (agent) => {
+        const endpoint = agent.apiEndpoint || "";
+        if (!endpoint.includes("github.com")) {
+          noEndpoint++;
+          return;
+        }
+
+        const parsed = extractGitHubOwnerRepo(endpoint);
+        if (!parsed) {
+          noEndpoint++;
+          return;
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+
+        try {
+          const ghRes = await fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`, {
+            method: "HEAD",
+            headers: { "User-Agent": "AgentForge" },
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          if (ghRes.ok) {
+            verified++;
+          } else {
+            broken++;
+            brokenAgents.push(agent.name);
+          }
+        } catch {
+          clearTimeout(timeout);
+          broken++;
+          brokenAgents.push(agent.name);
+        }
+      });
+
+      await Promise.all(checks);
+
+      res.json({
+        total: allAgents.length,
+        verified,
+        broken,
+        noEndpoint,
+        brokenAgents,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to verify agents" });
     }
   });
 

@@ -57,14 +57,43 @@ function CodeBlock({ code, label }: { code: string; label?: string }) {
   );
 }
 
+function extractGitHubRepo(url: string): { owner: string; repo: string } | null {
+  const match = url.match(/github\.com\/([^\/\s]+)\/([^\/\s#?]+)/);
+  if (!match) return null;
+  return { owner: match[1], repo: match[2].replace(/\.git$/, "") };
+}
+
+function extractNpmPackage(url: string): string | null {
+  // Match npmjs.org/package/@scope/name or npmjs.org/package/name
+  const match = url.match(/npm(?:js\.org|js\.com)\/package\/((?:@[^\/]+\/)?[^\/\s#?]+)/);
+  if (match) return match[1];
+  return null;
+}
+
 function getMcpConfig(agent: Agent): string | null {
-  const name = agent.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
   const isMcp = agent.tags.some((t) => t.toLowerCase().includes("mcp")) ||
     agent.description.toLowerCase().includes("mcp");
   if (!isMcp) return null;
 
+  const endpoint = agent.apiEndpoint || "";
+  let packageName: string;
+
+  // Try to extract real package name from npm URL
+  const npmPkg = extractNpmPackage(endpoint);
+  if (npmPkg) {
+    packageName = npmPkg;
+  } else if (endpoint.includes("github.com")) {
+    // Use the repo name from GitHub URL as the npx package name
+    const gh = extractGitHubRepo(endpoint);
+    packageName = gh ? gh.repo : agent.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
+  } else {
+    packageName = agent.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
+  }
+
+  const serverName = packageName.replace(/^@[^\/]+\//, "").replace(/[^a-z0-9-]/g, "-");
+
   return JSON.stringify(
-    { mcpServers: { [name]: { command: "npx", args: ["-y", name], env: {} } } },
+    { mcpServers: { [serverName]: { command: "npx", args: ["-y", packageName], env: {} } } },
     null,
     2,
   );
@@ -76,10 +105,26 @@ function getInstallCommands(agent: Agent): { npm?: string; pip?: string; docker?
   const tags = agent.tags.map((t) => t.toLowerCase()).join(" ");
   const desc = agent.description.toLowerCase();
 
-  if (endpoint.includes("github.com")) cmds.git = `git clone ${endpoint}`;
-  if (endpoint.includes("npmjs.org") || tags.includes("cli") || tags.includes("mcp")) {
+  if (endpoint.includes("github.com")) {
+    const gh = extractGitHubRepo(endpoint);
+    cmds.git = gh
+      ? `git clone https://github.com/${gh.owner}/${gh.repo}.git`
+      : `git clone ${endpoint}`;
+  }
+
+  // Use real npm package name if available, otherwise derive from GitHub repo or agent name
+  const npmPkg = extractNpmPackage(endpoint);
+  if (npmPkg) {
+    cmds.npm = `npx ${npmPkg}`;
+  } else if (endpoint.includes("github.com")) {
+    const gh = extractGitHubRepo(endpoint);
+    if (gh && (tags.includes("cli") || tags.includes("mcp"))) {
+      cmds.npm = `npx ${gh.repo}`;
+    }
+  } else if (tags.includes("cli") || tags.includes("mcp")) {
     cmds.npm = `npx ${agent.name.toLowerCase().replace(/[^a-z0-9-]+/g, "-")}`;
   }
+
   if (tags.includes("python") || tags.includes("pip") || desc.includes("python")) {
     cmds.pip = `pip install ${agent.name.toLowerCase().replace(/[^a-z0-9-]+/g, "-")}`;
   }

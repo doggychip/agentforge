@@ -2,6 +2,25 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
 
+// Clerk token getter — set by AuthProvider so API calls can include the token
+let _getClerkToken: (() => Promise<string | null>) | null = null;
+export function setClerkTokenGetter(fn: () => Promise<string | null>) {
+  _getClerkToken = fn;
+}
+
+async function getAuthHeaders(extraHeaders?: Record<string, string>): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { ...extraHeaders };
+  if (_getClerkToken) {
+    try {
+      const token = await _getClerkToken();
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+    } catch {}
+  }
+  return headers;
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     if (res.status === 401) {
@@ -17,9 +36,12 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const headers = await getAuthHeaders(
+    data ? { "Content-Type": "application/json" } : undefined,
+  );
   const res = await fetch(`${API_BASE}${url}`, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -34,7 +56,9 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    const headers = await getAuthHeaders();
     const res = await fetch(`${API_BASE}${queryKey.join("/")}`, {
+      headers,
       credentials: "include",
     });
 
@@ -52,7 +76,7 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: true,
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
       retry: false,
     },
     mutations: {

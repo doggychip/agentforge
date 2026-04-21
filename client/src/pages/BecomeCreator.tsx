@@ -1,19 +1,39 @@
 import { useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { SignInButton } from "@clerk/clerk-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, Rocket, X } from "lucide-react";
+import { ArrowLeft, Loader2, Rocket, X, Zap } from "lucide-react";
 
 export default function BecomeCreator() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
+
+  // Check if already a creator — redirect to dashboard
+  const { data: existingCreator, isLoading: checkingCreator } = useQuery<{ id: string } | null>({
+    queryKey: ["/api/creators/me"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", "/api/creators/me");
+        return res.json();
+      } catch { return null; }
+    },
+    enabled: !!user,
+  });
+
+  useEffect(() => {
+    if (existingCreator?.id) {
+      toast({ title: "You already have a creator profile!" });
+      navigate("/creator-dashboard");
+    }
+  }, [existingCreator]);
 
   const [handle, setHandle] = useState(user?.username ?? "");
 
@@ -54,8 +74,8 @@ export default function BecomeCreator() {
 
       if (err.message?.startsWith("401")) {
         queryClient.setQueryData(["/api/auth/me"], null);
-        navigate("/auth");
-        toast({ title: "Session expired. Please sign in again." });
+        toast({ title: "Session expired. Please sign in again.", variant: "destructive" });
+        navigate("/");
         return;
       }
       toast({ title: message, variant: "destructive" });
@@ -70,13 +90,21 @@ export default function BecomeCreator() {
     }
   }
 
+  if (authLoading) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-16 text-center">
+        <Loader2 size={24} className="animate-spin mx-auto text-muted-foreground" />
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
-        <p className="text-sm text-muted-foreground mb-4">Sign in first to become a creator.</p>
-        <Link href="/auth" className="no-underline">
-          <Button size="sm">Sign in</Button>
-        </Link>
+        <Rocket size={32} className="mx-auto mb-4 text-primary" />
+        <h2 className="text-lg font-semibold mb-2">Become a Creator</h2>
+        <p className="text-sm text-muted-foreground mb-4">Sign in with Google or GitHub to get started.</p>
+        <p className="text-xs text-muted-foreground">Click <strong>Sign in</strong> in the top right corner, then come back here.</p>
       </div>
     );
   }

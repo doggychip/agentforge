@@ -2,24 +2,16 @@ import { Link, useLocation } from "wouter";
 import { useTheme } from "./ThemeProvider";
 import { PerplexityAttribution } from "./PerplexityAttribution";
 import { useAuth } from "@/hooks/use-auth";
-import { SignInButton, UserButton, useUser } from "@clerk/clerk-react";
+import { SignInButton, UserButton } from "@clerk/clerk-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Notification } from "@shared/schema";
 import {
-  Sun, Moon, Bot, Compass, Users, Zap, Menu, X, LogOut, User as UserIcon, Newspaper, PenSquare,
+  Sun, Moon, Bot, Compass, Users, Zap, Menu, X, User as UserIcon, Newspaper, PenSquare,
   Bell, Heart, MessageCircle, UserPlus, FileText, LayoutDashboard, Key
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useState } from "react";
 
 function AgentForgeLogo() {
@@ -36,7 +28,7 @@ function AgentForgeLogo() {
 }
 
 const navItems = [
-  { href: "/explore", label: "Explore", icon: Compass },
+  { href: "/discover", label: "Discover", icon: Compass },
   { href: "/feed", label: "Feed", icon: Newspaper },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/creators", label: "Creators", icon: Users },
@@ -186,10 +178,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     enabled: !!user,
   });
 
-  function getInitials(name: string) {
-    return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       {/* Header */}
@@ -241,64 +229,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {!isLoading && (
               <>
                 {user ? (
-                  <div className="flex items-center gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 gap-2 px-2" data-testid="button-user-menu">
-                          <Avatar className="h-6 w-6">
-                            {user.avatar ? (
-                              <img src={user.avatar} alt={user.displayName} className="h-6 w-6 rounded-full" />
-                            ) : (
-                              <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">
-                                {getInitials(user.displayName)}
-                              </AvatarFallback>
-                            )}
-                          </Avatar>
-                          <span className="hidden sm:inline text-xs font-medium max-w-[100px] truncate">
-                            {user.displayName}
-                          </span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <div className="px-2 py-1.5">
-                          <p className="text-sm font-medium">{user.displayName}</p>
-                          <p className="text-xs text-muted-foreground">@{user.username}</p>
-                        </div>
-                        <DropdownMenuSeparator />
-                        <Link href="/profile" className="no-underline">
-                          <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-profile">
-                            <UserIcon size={14} />
-                            Profile
-                          </DropdownMenuItem>
-                        </Link>
-                        {creatorProfile && (
-                          <Link href="/dashboard" className="no-underline">
-                            <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-dashboard">
-                              <LayoutDashboard size={14} />
-                              Dashboard
-                            </DropdownMenuItem>
-                          </Link>
-                        )}
-                        <Link href="/new-post" className="no-underline">
-                          <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-write">
-                            <PenSquare size={14} />
-                            Write a post
-                          </DropdownMenuItem>
-                        </Link>
-                        <Link href="/settings/api-keys" className="no-underline">
-                          <DropdownMenuItem className="gap-2 text-xs" data-testid="menu-item-api-keys">
-                            <Key size={14} />
-                            API Keys
-                          </DropdownMenuItem>
-                        </Link>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <UserButton
-                      appearance={{
-                        elements: { avatarBox: "h-7 w-7" },
-                      }}
-                    />
-                  </div>
+                  <UserButton
+                    appearance={{
+                      elements: { avatarBox: "h-8 w-8" },
+                    }}
+                  >
+                    <UserButton.MenuItems>
+                      <UserButton.Link label="Profile" href="/#/profile" labelIcon={<UserIcon size={14} />} />
+                      {creatorProfile && (
+                        <UserButton.Link label="Dashboard" href="/#/dashboard" labelIcon={<LayoutDashboard size={14} />} />
+                      )}
+                      <UserButton.Link label="Write a post" href="/#/new-post" labelIcon={<PenSquare size={14} />} />
+                      <UserButton.Link label="API Keys" href="/#/settings/api-keys" labelIcon={<Key size={14} />} />
+                    </UserButton.MenuItems>
+                  </UserButton>
                 ) : (
                   <SignInButton mode="modal">
                     <Button size="sm" className="h-8 text-xs font-medium gap-1.5" data-testid="button-sign-in">
@@ -340,14 +284,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
               );
             })}
             {!user && (
-              <Link
-                href="/auth"
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium text-primary no-underline"
-              >
-                <Zap size={16} />
-                Sign in
-              </Link>
+              <div className="px-3 py-2.5">
+                <SignInButton mode="modal">
+                  <button
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 text-sm font-medium text-primary"
+                  >
+                    <Zap size={16} />
+                    Sign in
+                  </button>
+                </SignInButton>
+              </div>
             )}
           </nav>
         )}

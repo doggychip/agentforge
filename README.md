@@ -11,161 +11,228 @@ AgentForge is a unified API gateway and marketplace for AI agents. Use a single 
 Most AI agent platforms make you manage separate API keys, auth flows, and billing for every agent you use. AgentForge gives you **one key to rule them all**.
 
 - **Unified API** — Call any agent through a single REST endpoint
-- **300+ agents** — Pre-loaded with trending agents from GitHub and HuggingFace
-- **Creator economy** — Publish your own agents and earn revenue (90% creator share)
-- **Built for developers** — RESTful API, streaming support, API key auth, rate limiting
+- - **300+ agents** — Pre-loaded with trending agents from GitHub and HuggingFace
+  - - **Creator economy** — Publish your own agents and earn revenue (90% creator share)
+    - - **Built for developers** — RESTful API, streaming support, API key auth, rate limiting
+      - - **MCP support** — Use AgentForge as a Model Context Protocol server to access all agents from Claude, Cursor, and other MCP clients
+       
+        - ## Quick Start
+       
+        - ### Use the API (no install needed)
+       
+        - ```bash
+          # 1. Get your API key at https://patreon.zeabur.app/#/settings/api-keys
+          # 2. Call any agent:
+          curl -X POST https://patreon.zeabur.app/api/agents/AGENT_ID/invoke \
+            -H "Authorization: Bearer af_k_your_key_here" \
+            -H "Content-Type: application/json" \
+            -d '{"messages": [{"role": "user", "content": "Hello!"}]}'
+          ```
 
-## Quick Start
+          ### Python
 
-### Use the API (no install needed)
+          ```python
+          import requests
+          response = requests.post(
+              "https://patreon.zeabur.app/api/agents/AGENT_ID/invoke",
+              headers={"Authorization": "Bearer af_k_your_key_here"},
+              json={"messages": [{"role": "user", "content": "Hello!"}]}
+          )
+          print(response.json())
+          ```
 
-```bash
-# 1. Get your API key at https://patreon.zeabur.app/#/settings/api-keys
-# 2. Call any agent:
+          ### JavaScript
 
-curl -X POST https://patreon.zeabur.app/api/agents/AGENT_ID/invoke \
-  -H "Authorization: Bearer af_k_your_key_here" \
-  -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "Hello!"}]}'
-```
+          ```javascript
+          const response = await fetch(
+            "https://patreon.zeabur.app/api/agents/AGENT_ID/invoke",
+            {
+              method: "POST",
+              headers: {
+                "Authorization": "Bearer af_k_your_key_here",
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                messages: [{ role: "user", content: "Hello!" }],
+              }),
+            }
+          );
+          const data = await response.json();
+          ```
 
-### Python
+          ## MCP Server (Model Context Protocol)
 
-```python
-import requests
+          AgentForge ships a built-in **MCP server** (`mcp/server.ts`) that exposes all 300+ agents as MCP tools. This lets any MCP-compatible client — Claude Desktop, Cursor, Continue, etc. — discover and invoke agents with zero extra configuration.
 
-response = requests.post(
-    "https://patreon.zeabur.app/api/agents/AGENT_ID/invoke",
-    headers={"Authorization": "Bearer af_k_your_key_here"},
-    json={"messages": [{"role": "user", "content": "Hello!"}]}
-)
-print(response.json())
-```
+          ### MCP Tools exposed
 
-### JavaScript
+          | Tool | Description |
+          |------|-------------|
+          | `list_agents` | List all agents on the marketplace (optional category/limit filter) |
+          | `get_agent` | Get full details for a specific agent by ID |
+          | `invoke_agent` | Invoke any agent with a chat-completion style messages array |
+          | `check_agent_health` | Check the health/availability of a specific agent |
+          | `get_platform_stats` | Retrieve aggregate platform statistics |
 
-```javascript
-const response = await fetch(
-  "https://patreon.zeabur.app/api/agents/AGENT_ID/invoke",
-  {
-    method: "POST",
-    headers: {
-      "Authorization": "Bearer af_k_your_key_here",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messages: [{ role: "user", content: "Hello!" }],
-    }),
-  }
-);
-const data = await response.json();
-```
+          ### Running the MCP server locally
 
-## Features
+          ```bash
+          git clone https://github.com/doggychip/agentforge.git
+          cd agentforge
+          npm install
 
-### For Users
-- Browse and discover 300+ AI agents, tools, and APIs
-- One API key to access all agents
-- Free and paid agents with transparent pricing
-- Streaming support for real-time responses
-- Usage tracking and billing history
+          # Set your AgentForge API key (get one at https://patreon.zeabur.app/#/settings/api-keys)
+          export AGENTFORGE_API_KEY=af_k_your_key_here
 
-### For Creators
-- Publish unlimited agents with your own pricing
-- 90% revenue share (10% platform fee)
-- Stripe Connect payouts to your bank account
-- Analytics dashboard with subscriber metrics
-- API proxy — we handle auth, rate limiting, and billing
+          # Start the MCP server (communicates over stdio)
+          npm run mcp:start
+          ```
 
-### Platform
-- Google OAuth + email/password authentication
-- Two-factor authentication (TOTP)
-- Rate limiting (1000 req/hour, 10000 req/day per key)
-- Agent health monitoring
-- Auto-import from GitHub trending and HuggingFace
+          ### Connecting to Claude Desktop
 
-## API Endpoints
+          Add the following to your `claude_desktop_config.json`
+          (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/agents/:id/invoke` | Invoke an agent |
-| `GET` | `/api/agents` | List all agents |
-| `GET` | `/api/agents/:id` | Get agent details |
-| `GET` | `/api/agents/:id/health` | Check agent health |
-| `GET` | `/api/stats` | Platform statistics |
+          ```json
+          {
+            "mcpServers": {
+              "agentforge": {
+                "command": "npx",
+                "args": ["tsx", "/path/to/agentforge/mcp/server.ts"],
+                "env": {
+                  "AGENTFORGE_API_KEY": "af_k_your_key_here"
+                }
+              }
+            }
+          }
+          ```
 
-Full API documentation: [patreon.zeabur.app/#/docs](https://patreon.zeabur.app/#/docs)
+          Restart Claude Desktop. You will now see AgentForge tools available in the MCP connector panel.
 
-## Self-Hosting
+          ### Connecting to other MCP clients
 
-### Prerequisites
-- Node.js 20+
-- PostgreSQL
+          Any MCP client that supports stdio transport can connect to AgentForge:
 
-### Setup
+          ```bash
+          # Generic stdio invocation
+          AGENTFORGE_API_KEY=af_k_your_key_here npx tsx /path/to/agentforge/mcp/server.ts
+          ```
 
-```bash
-git clone https://github.com/doggychip/agentforge.git
-cd agentforge
-npm install
+          ### Environment variables for the MCP server
 
-# Set environment variables
-export DATABASE_URL=postgresql://user:password@host:5432/agentforge
+          | Variable | Required | Description |
+          |----------|----------|-------------|
+          | `AGENTFORGE_API_KEY` | Yes (for invoke_agent) | Your AgentForge API key |
+          | `AGENTFORGE_BASE_URL` | No | Override base URL (default: `https://patreon.zeabur.app`) |
 
-# Start development server (auto-migrates and seeds)
-npm run dev
-```
+          ## Features
 
-### Environment Variables
+          ### For Users
+          - Browse and discover 300+ AI agents, tools, and APIs
+          - - One API key to access all agents
+            - - Free and paid agents with transparent pricing
+              - - Streaming support for real-time responses
+                - - Usage tracking and billing history
+                 
+                  - ### For Creators
+                  - - Publish unlimited agents with your own pricing
+                    - - 90% revenue share (10% platform fee)
+                      - - Stripe Connect payouts to your bank account
+                        - - Analytics dashboard with subscriber metrics
+                          - - API proxy — we handle auth, rate limiting, and billing
+                           
+                            - ### Platform
+                            - - Google OAuth + email/password authentication
+                              - - Two-factor authentication (TOTP)
+                                - - Rate limiting (1000 req/hour, 10000 req/day per key)
+                                  - - Agent health monitoring
+                                    - - Auto-import from GitHub trending and HuggingFace
+                                     
+                                      - ## API Endpoints
+                                     
+                                      - | Method | Endpoint | Description |
+                                      - |--------|----------|-------------|
+                                      - | `POST` | `/api/agents/:id/invoke` | Invoke an agent |
+                                      - | `GET` | `/api/agents` | List all agents |
+                                      - | `GET` | `/api/agents/:id` | Get agent details |
+                                      - | `GET` | `/api/agents/:id/health` | Check agent health |
+                                      - | `GET` | `/api/stats` | Platform statistics |
+                                     
+                                      - Full API documentation: [patreon.zeabur.app/#/docs](https://patreon.zeabur.app/#/docs)
+                                     
+                                      - ## Self-Hosting
+                                     
+                                      - ### Prerequisites
+                                      - - Node.js 20+
+                                        - - PostgreSQL
+                                         
+                                          - ### Setup
+                                         
+                                          - ```bash
+                                            git clone https://github.com/doggychip/agentforge.git
+                                            cd agentforge
+                                            npm install
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `STRIPE_SECRET_KEY` | No | Stripe API key for payments |
-| `STRIPE_WEBHOOK_SECRET` | No | Stripe webhook signing secret |
-| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
-| `SMTP_HOST` | No | SMTP server for emails |
-| `SMTP_USER` | No | SMTP username |
-| `SMTP_PASS` | No | SMTP password |
+                                            # Set environment variables
+                                            export DATABASE_URL=postgresql://user:password@host:5432/agentforge
 
-### Deploy to Zeabur
+                                            # Start development server (auto-migrates and seeds)
+                                            npm run dev
+                                            ```
 
-1. Push to GitHub
-2. Create project in [Zeabur](https://zeabur.com)
-3. Import the repo + add PostgreSQL service
-4. Zeabur auto-injects `DATABASE_URL`
+                                            ### Environment Variables
 
-## Tech Stack
+                                            | Variable | Required | Description |
+                                            |----------|----------|-------------|
+                                            | `DATABASE_URL` | Yes | PostgreSQL connection string |
+                                            | `STRIPE_SECRET_KEY` | No | Stripe API key for payments |
+                                            | `STRIPE_WEBHOOK_SECRET` | No | Stripe webhook signing secret |
+                                            | `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
+                                            | `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
+                                            | `SMTP_HOST` | No | SMTP server for emails |
+                                            | `SMTP_USER` | No | SMTP username |
+                                            | `SMTP_PASS` | No | SMTP password |
 
-- **Frontend**: React 18, Tailwind CSS, shadcn/ui, TanStack Query, wouter
-- **Backend**: Express 5, Drizzle ORM, Passport
-- **Database**: PostgreSQL
-- **Payments**: Stripe Connect
-- **Auth**: bcrypt, Google OAuth, TOTP 2FA
-- **Deploy**: Docker / Zeabur
+                                            ### Deploy to Zeabur
 
-## Project Structure
+                                            1. Push to GitHub
+                                            2. 2. Create project in [Zeabur](https://zeabur.com)
+                                               3. 3. Import the repo + add PostgreSQL service
+                                                  4. 4. Zeabur auto-injects `DATABASE_URL`
+                                                    
+                                                     5. ## Tech Stack
+                                                    
+                                                     6. - **Frontend**: React 18, Tailwind CSS, shadcn/ui, TanStack Query, wouter
+                                                        - - **Backend**: Express 5, Drizzle ORM, Passport
+                                                          - - **Database**: PostgreSQL
+                                                            - - **Payments**: Stripe Connect
+                                                              - - **Auth**: bcrypt, Google OAuth, TOTP 2FA
+                                                                - - **Deploy**: Docker / Zeabur
+                                                                  - - **MCP**: @modelcontextprotocol/sdk (TypeScript)
+                                                                   
+                                                                    - ## Project Structure
+                                                                   
+                                                                    - ```
+                                                                      agentforge/
+                                                                      ├── client/src/          # React frontend
+                                                                      │   ├── pages/           # Route pages
+                                                                      │   ├── components/      # Shared components
+                                                                      │   └── hooks/           # Auth, query hooks
+                                                                      ├── mcp/
+                                                                      │   └── server.ts        # MCP server (5 tools over stdio)
+                                                                      ├── server/
+                                                                      │   ├── routes.ts        # API endpoints
+                                                                      │   ├── storage.ts       # Database layer
+                                                                      │   └── db.ts            # Connection + migrations
+                                                                      ├── shared/
+                                                                      │   └── schema.ts        # Drizzle schema + types
+                                                                      └── Dockerfile
+                                                                      ```
 
-```
-agentforge/
-├── client/src/          # React frontend
-│   ├── pages/           # Route pages
-│   ├── components/      # Shared components
-│   └── hooks/           # Auth, query hooks
-├── server/
-│   ├── routes.ts        # API endpoints
-│   ├── storage.ts       # Database layer
-│   └── db.ts            # Connection + migrations
-├── shared/
-│   └── schema.ts        # Drizzle schema + types
-└── Dockerfile
-```
+                                                                      ## Contributing
 
-## Contributing
+                                                                      Pull requests welcome. For major changes, open an issue first.
 
-Pull requests welcome. For major changes, open an issue first.
+                                                                      ## License
 
-## License
-
-MIT
+                                                                      MIT

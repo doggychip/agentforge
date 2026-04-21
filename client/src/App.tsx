@@ -16,7 +16,6 @@ import Agents from "@/pages/Agents";
 import AgentDetail from "@/pages/AgentDetail";
 import Creators from "@/pages/Creators";
 import CreatorDetail from "@/pages/CreatorDetail";
-import Auth from "@/pages/Auth";
 import Feed from "@/pages/Feed";
 import PostDetail from "@/pages/PostDetail";
 import NewPost from "@/pages/NewPost";
@@ -26,9 +25,9 @@ import Dashboard from "@/pages/Dashboard";
 import ApiKeys from "@/pages/ApiKeys";
 import ApiDocs from "@/pages/ApiDocs";
 import ForCreators from "@/pages/ForCreators";
-import ResetPassword from "@/pages/ResetPassword";
 import Pricing from "@/pages/Pricing";
 import Playground from "@/pages/Playground";
+import Discover from "@/pages/Discover";
 import CreatorDashboard from "@/pages/CreatorDashboard";
 import PublishAgent from "@/pages/PublishAgent";
 import NotFound from "@/pages/not-found";
@@ -39,6 +38,7 @@ function AppRouter() {
       <Switch>
         <Route path="/" component={ForCreators} />
         <Route path="/explore" component={Home} />
+        <Route path="/discover" component={Discover} />
         <Route path="/agents" component={Agents} />
         <Route path="/agents/:id" component={AgentDetail} />
         <Route path="/playground/:id" component={Playground} />
@@ -53,11 +53,9 @@ function AppRouter() {
         <Route path="/settings/api-keys" component={ApiKeys} />
         <Route path="/docs" component={ApiDocs} />
         <Route path="/for-creators" component={ForCreators} />
-        <Route path="/auth" component={Auth} />
         <Route path="/pricing" component={Pricing} />
         <Route path="/creator-dashboard" component={CreatorDashboard} />
         <Route path="/publish" component={PublishAgent} />
-        <Route path="/reset-password" component={ResetPassword} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
