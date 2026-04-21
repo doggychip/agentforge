@@ -106,41 +106,49 @@ function toSafeUser(user: { id: string; username: string; email: string; display
   return safe as SafeUser;
 }
 
+// Timeout wrapper for external API calls
+function withTimeout<T>(promise: Promise<T>, ms = 5000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("API timeout")), ms)),
+  ]);
+}
+
 // Middleware to require auth — always verifies current Clerk token
 // Auto-creates a DB user from Clerk if one doesn't exist yet.
 async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // Always check Clerk token to get the CURRENT user (not a stale session)
+  // Always check Clerk token first
   if (getAuth) {
     try {
       const auth = getAuth(req);
       if (auth?.userId) {
-        // Update session if user changed
         if (req.session.userId !== auth.userId) {
           req.session.userId = auth.userId;
         }
         let user = await storage.getUser(auth.userId);
         if (!user && clerkClient) {
-          try {
-            const clerkUser = await clerkClient.users.getUser(auth.userId);
-            user = await storage.createUser({
-              username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${auth.userId.slice(-6)}`,
-              email: clerkUser.emailAddresses[0]?.emailAddress || "",
-              password: crypto.randomBytes(32).toString("hex"),
-              displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "User",
-            });
-          } catch (createErr: any) {
-            console.error("Failed to auto-create user from Clerk:", createErr.message);
-          }
+          const clerkUser = await withTimeout(clerkClient.users.getUser(auth.userId));
+          user = await storage.createUser({
+            username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${auth.userId.slice(-6)}`,
+            email: clerkUser.emailAddresses[0]?.emailAddress || "",
+            password: crypto.randomBytes(32).toString("hex"),
+            displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "User",
+          });
         }
         if (user) return next();
       }
-    } catch {}
+    } catch (err: any) {
+      console.error("[requireAuth] Clerk/DB error:", err.message);
+    }
   }
 
-  // Fallback: session-only (for API key auth)
-  if (req.session.userId) {
-    const existing = await storage.getUser(req.session.userId);
-    if (existing) return next();
+  // Fallback: API key auth only (Bearer token already validated by global middleware)
+  if ((req as any).apiKeyUserId) {
+    const user = await storage.getUser((req as any).apiKeyUserId);
+    if (user) {
+      req.session.userId = (req as any).apiKeyUserId;
+      return next();
+    }
   }
 
   return res.status(401).json({ message: "Not authenticated" });
@@ -319,25 +327,22 @@ export async function registerRoutes(
         if (auth?.userId) {
           let user = await storage.getUser(auth.userId);
           if (!user && clerkClient) {
-            try {
-              const clerkUser = await clerkClient.users.getUser(auth.userId);
-              user = await storage.createUser({
-                username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${auth.userId.slice(-6)}`,
-                email: clerkUser.emailAddresses[0]?.emailAddress || "",
-                password: crypto.randomBytes(32).toString("hex"),
-                displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "User",
-              });
-            } catch (createErr: any) {
-              console.error("Failed to auto-create user from Clerk:", createErr.message);
-              return res.status(401).json({ message: "Not authenticated" });
-            }
+            const clerkUser = await withTimeout(clerkClient.users.getUser(auth.userId));
+            user = await storage.createUser({
+              username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${auth.userId.slice(-6)}`,
+              email: clerkUser.emailAddresses[0]?.emailAddress || "",
+              password: crypto.randomBytes(32).toString("hex"),
+              displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "User",
+            });
           }
           if (user) {
             req.session.userId = auth.userId;
             return res.json(toSafeUser(user));
           }
         }
-      } catch {}
+      } catch (err: any) {
+        console.error("[/api/auth/me] Error:", err.message);
+      }
     }
 
     return res.status(401).json({ message: "Not authenticated" });

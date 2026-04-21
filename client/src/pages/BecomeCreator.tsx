@@ -74,7 +74,8 @@ export default function BecomeCreator() {
 
       if (err.message?.startsWith("401")) {
         queryClient.setQueryData(["/api/auth/me"], null);
-        toast({ title: "Session expired. Please sign in again." });
+        toast({ title: "Session expired. Please sign in again.", variant: "destructive" });
+        navigate("/");
         return;
       }
       toast({ title: message, variant: "destructive" });
