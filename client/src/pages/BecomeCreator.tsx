@@ -89,7 +89,7 @@ export default function BecomeCreator() {
     }
   }
 
-  if (authLoading || checkingCreator) {
+  if (authLoading) {
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
         <Loader2 size={24} className="animate-spin mx-auto text-muted-foreground" />
