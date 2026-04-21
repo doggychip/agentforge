@@ -107,15 +107,36 @@ function toSafeUser(user: { id: string; username: string; email: string; display
 }
 
 // Middleware to require auth — Clerk token (session caches the userId)
-function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (req.session.userId) return next();
+// Also auto-creates a DB user from Clerk if one doesn't exist yet.
+async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  // Check cached session first
+  if (req.session.userId) {
+    const existing = await storage.getUser(req.session.userId);
+    if (existing) return next();
+  }
 
   if (getAuth) {
     try {
       const auth = getAuth(req);
       if (auth?.userId) {
-        req.session.userId = auth.userId;
-        return next();
+        let user = await storage.getUser(auth.userId);
+        if (!user && clerkClient) {
+          try {
+            const clerkUser = await clerkClient.users.getUser(auth.userId);
+            user = await storage.createUser({
+              username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || `user_${auth.userId.slice(-6)}`,
+              email: clerkUser.emailAddresses[0]?.emailAddress || "",
+              password: crypto.randomBytes(32).toString("hex"),
+              displayName: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "User",
+            });
+          } catch (createErr: any) {
+            console.error("Failed to auto-create user from Clerk:", createErr.message);
+          }
+        }
+        if (user) {
+          req.session.userId = auth.userId;
+          return next();
+        }
       }
     } catch {}
   }
