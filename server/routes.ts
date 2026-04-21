@@ -106,19 +106,18 @@ function toSafeUser(user: { id: string; username: string; email: string; display
   return safe as SafeUser;
 }
 
-// Middleware to require auth — Clerk token (session caches the userId)
-// Also auto-creates a DB user from Clerk if one doesn't exist yet.
+// Middleware to require auth — always verifies current Clerk token
+// Auto-creates a DB user from Clerk if one doesn't exist yet.
 async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // Check cached session first
-  if (req.session.userId) {
-    const existing = await storage.getUser(req.session.userId);
-    if (existing) return next();
-  }
-
+  // Always check Clerk token to get the CURRENT user (not a stale session)
   if (getAuth) {
     try {
       const auth = getAuth(req);
       if (auth?.userId) {
+        // Update session if user changed
+        if (req.session.userId !== auth.userId) {
+          req.session.userId = auth.userId;
+        }
         let user = await storage.getUser(auth.userId);
         if (!user && clerkClient) {
           try {
@@ -133,12 +132,15 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
             console.error("Failed to auto-create user from Clerk:", createErr.message);
           }
         }
-        if (user) {
-          req.session.userId = auth.userId;
-          return next();
-        }
+        if (user) return next();
       }
     } catch {}
+  }
+
+  // Fallback: session-only (for API key auth)
+  if (req.session.userId) {
+    const existing = await storage.getUser(req.session.userId);
+    if (existing) return next();
   }
 
   return res.status(401).json({ message: "Not authenticated" });
